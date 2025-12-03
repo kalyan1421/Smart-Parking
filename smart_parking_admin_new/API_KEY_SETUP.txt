@@ -1,0 +1,138 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    GOOGLE MAPS API KEY CONFIGURATION                         ║
+║                           COPY THESE EXACT VALUES                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+🔗 Google Cloud Console URL:
+   https://console.cloud.google.com/apis/credentials
+
+📋 Your Configuration Details:
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   Project:        smart-parking-kalyan-2024
+   
+   API Key:        AIzaSyBvOkBwgGlbUiuS-oKrPgGHXKGMnpC7T6s
+   
+   Package Name:   com.example.smart_parking_admin_new
+   
+   SHA-1:          92:EE:F9:D9:B3:10:84:04:1E:5B:8B:DA:49:C3:18:D3:32:0F:FD:6F
+
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📝 STEP-BY-STEP INSTRUCTIONS:
+
+   1. Open: https://console.cloud.google.com/apis/credentials
+   
+   2. Select project: smart-parking-kalyan-2024
+   
+   3. Click on API key: AIzaSyBvOkBwgGlbUiuS-oKrPgGHXKGMnpC7T6s
+   
+   4. Under "Application restrictions":
+      ┌─────────────────────────────────────────────────────────────┐
+      │ ○ None                                                      │
+      │ ● Android apps                                              │
+      │ ○ iOS apps                                                  │
+      │ ○ HTTP referrers (web sites)                                │
+      │ ○ IP addresses                                              │
+      └─────────────────────────────────────────────────────────────┘
+      
+      Select: Android apps
+      
+   5. Click "Add an item" button
+   
+   6. Enter EXACTLY (copy-paste):
+      
+      Package name:
+      ┌─────────────────────────────────────────────────────────────┐
+      │ com.example.smart_parking_admin_new                         │
+      └─────────────────────────────────────────────────────────────┘
+      
+      SHA-1 certificate fingerprint:
+      ┌─────────────────────────────────────────────────────────────┐
+      │ 92:EE:F9:D9:B3:10:84:04:1E:5B:8B:DA:49:C3:18:D3:32:0F:FD:6F │
+      └─────────────────────────────────────────────────────────────┘
+   
+   7. Click "Done"
+   
+   8. Under "API restrictions":
+      ┌─────────────────────────────────────────────────────────────┐
+      │ ○ Don't restrict key                                        │
+      │ ● Restrict key                                              │
+      │                                                             │
+      │   Select APIs:                                              │
+      │   ☑ Maps SDK for Android                                   │
+      │   ☑ Places API                                              │
+      │   ☑ Geolocation API                                         │
+      │   ☑ Geocoding API                                           │
+      └─────────────────────────────────────────────────────────────┘
+   
+   9. Click "SAVE" button at the bottom
+   
+   10. ⏰ WAIT 2-3 MINUTES for changes to propagate
+   
+   11. Run your app:
+       cd "/Users/kalyan/andriod_project /Smart Parking/smart_parking_app/smart_parking_admin_new"
+       flutter run
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ VERIFICATION:
+
+   After configuration, you should see in logs:
+   
+   ✓ I/GoogleMapController: Installing custom TextureView driven invalidator
+   ✓ Map tiles loading (streets, buildings visible)
+   ✓ No "Authorization failure" errors
+   ✓ Green notification: "Map loaded successfully!"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ TROUBLESHOOTING:
+
+   If map still doesn't load after 5 minutes:
+   
+   1. Check billing is enabled in Google Cloud Console
+   2. Verify all required APIs are enabled
+   3. Try removing all restrictions temporarily (select "None")
+   4. Clear app data and reinstall:
+      flutter clean && flutter run --uninstall-first
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📱 REQUIRED APIs TO ENABLE:
+
+   Go to: https://console.cloud.google.com/apis/library
+   
+   Search and enable each:
+   ✓ Maps SDK for Android
+   ✓ Places API
+   ✓ Geolocation API
+   ✓ Geocoding API
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 QUICK TIP:
+
+   If you want to test immediately without restrictions:
+   
+   1. Under "Application restrictions": Select "None"
+   2. Under "API restrictions": Select "Don't restrict key"
+   3. Click "Save"
+   4. Wait 2 minutes
+   5. Run: flutter run
+   
+   (You can add restrictions later for security)
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                            IMPORTANT NOTES                                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+• Changes take 2-3 minutes to propagate globally
+• Make sure billing is enabled in Google Cloud Console
+• The SHA-1 is from your debug keystore (for development)
+• For production, you'll need the release keystore SHA-1
+• Keep your API key secure and don't commit it to public repos
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Last Updated: November 3, 2025

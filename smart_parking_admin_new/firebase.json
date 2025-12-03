@@ -1,0 +1,52 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "smart-parking-kalyan-2024",
+          "appId": "1:166350393893:android:f666198a8b084c522fe5cc",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "smart-parking-kalyan-2024",
+          "appId": "1:166350393893:ios:c47fb768738e40742fe5cc",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "smart-parking-kalyan-2024",
+          "configurations": {
+            "android": "1:166350393893:android:f666198a8b084c522fe5cc",
+            "ios": "1:166350393893:ios:c47fb768738e40742fe5cc",
+            "web": "1:166350393893:web:5de9461d485ffd1d2fe5cc"
+          }
+        }
+      }
+    }
+  }
+}
