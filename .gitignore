@@ -27,9 +27,22 @@ build/
 dist/
 *.apk
 *.aab
+**/build/
+**/.dart_tool/
+**/.gradle/
+**/.cxx/
+*.dill
+*.cache.dill.track.dill
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
 
 # Firebase
-google-services.json
 GoogleService-Info.plist
 firebase-debug.log
 firestore-debug.log

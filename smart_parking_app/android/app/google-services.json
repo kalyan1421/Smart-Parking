@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "166350393893",
+    "project_id": "smart-parking-kalyan-2024",
+    "storage_bucket": "smart-parking-kalyan-2024.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:166350393893:android:f666198a8b084c522fe5cc",
+        "android_client_info": {
+          "package_name": "com.example.smart_parking_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbKQgLTkjYsVfdUZBO5PPJ9pSqicwwJgY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
