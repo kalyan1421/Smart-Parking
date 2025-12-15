@@ -9,6 +9,7 @@ import '../../providers/admin_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/parking_spot.dart';
 import '../../config/app_config.dart';
+import '../maps/location_picker_screen.dart';
 
 class AddParkingSpotScreen extends StatefulWidget {
   const AddParkingSpotScreen({super.key});
@@ -37,6 +38,7 @@ class _AddParkingSpotScreenState extends State<AddParkingSpotScreen> {
   Set<Marker> _markers = {};
   bool _showMap = false;
   bool _isMapLoading = true;
+  String? _mapError;
 
   final List<String> _amenityOptions = [
     'Security Camera',
@@ -66,6 +68,20 @@ class _AddParkingSpotScreenState extends State<AddParkingSpotScreen> {
   void initState() {
     super.initState();
     _getCurrentLocation();
+    // Set timeout for map loading
+    _setupMapTimeout();
+  }
+
+  void _setupMapTimeout() {
+    // If map doesn't load within 10 seconds, show error
+    Future.delayed(const Duration(seconds: 10), () {
+      if (mounted && _isMapLoading && _showMap) {
+        setState(() {
+          _isMapLoading = false;
+          _mapError = 'Map is taking longer than expected. Please check your internet connection and try again.';
+        });
+      }
+    });
   }
 
   @override
@@ -151,10 +167,29 @@ class _AddParkingSpotScreenState extends State<AddParkingSpotScreen> {
           markerId: const MarkerId('selected_location'),
           position: location,
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          draggable: true,
           infoWindow: InfoWindow(
             title: 'Parking Location',
-            snippet: 'Lat: ${location.latitude.toStringAsFixed(6)}, Lng: ${location.longitude.toStringAsFixed(6)}',
+            snippet: 'Lat: ${location.latitude.toStringAsFixed(6)}, Lng: ${location.longitude.toStringAsFixed(6)}\nDrag to adjust',
           ),
+          onDragEnd: (LatLng newPosition) {
+            debugPrint('📍 Marker dragged to: ${newPosition.latitude}, ${newPosition.longitude}');
+            setState(() {
+              _selectedLocation = newPosition;
+            });
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '📍 Location updated:\n${newPosition.latitude.toStringAsFixed(6)}, ${newPosition.longitude.toStringAsFixed(6)}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          },
         ),
       };
     });
@@ -165,11 +200,12 @@ class _AddParkingSpotScreenState extends State<AddParkingSpotScreen> {
     _mapController = controller;
     setState(() {
       _isMapLoading = false;
+      _mapError = null;
     });
     _updateMarker(_selectedLocation);
     // Animate to current location after map is ready
     Future.delayed(const Duration(milliseconds: 500), () {
-      if (_mapController != null) {
+      if (_mapController != null && mounted) {
         _mapController!.animateCamera(
           CameraUpdate.newCameraPosition(
             CameraPosition(
@@ -185,16 +221,71 @@ class _AddParkingSpotScreenState extends State<AddParkingSpotScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ Map loaded successfully! Tap to select location'),
+          content: Text('✅ Map loaded successfully! Tap anywhere on the map to drop a pin'),
           backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
+          duration: Duration(seconds: 3),
         ),
       );
     }
   }
 
   void _onMapTapped(LatLng location) {
+    debugPrint('📍 Map tapped at: ${location.latitude}, ${location.longitude}');
     _updateMarker(location);
+    // Show feedback
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '📍 Pin dropped at:\n${location.latitude.toStringAsFixed(6)}, ${location.longitude.toStringAsFixed(6)}',
+            style: const TextStyle(fontSize: 12),
+          ),
+          backgroundColor: Colors.blue,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openLocationPicker() async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LocationPickerScreen(
+          initialLocation: _selectedLocation,
+          initialAddress: _addressController.text.isNotEmpty ? _addressController.text : null,
+        ),
+      ),
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _selectedLocation = result['location'] as LatLng;
+        if (result['address'] != null) {
+          _addressController.text = result['address'] as String;
+        }
+        _updateMarker(_selectedLocation);
+      });
+
+      if (_mapController != null) {
+        _mapController!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: _selectedLocation,
+              zoom: 15.0,
+            ),
+          ),
+        );
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Location updated: ${result['address'] ?? '${_selectedLocation.latitude}, ${_selectedLocation.longitude}'}'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _submitForm() async {
@@ -653,6 +744,7 @@ class _AddParkingSpotScreenState extends State<AddParkingSpotScreen> {
                       _showMap = !_showMap;
                       if (_showMap) {
                         _isMapLoading = true;
+                        _mapError = null;
                       }
                     });
                   },
@@ -748,6 +840,23 @@ class _AddParkingSpotScreenState extends State<AddParkingSpotScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _openLocationPicker,
+                    icon: const Icon(Icons.map, size: 20),
+                    label: const Text('Open Map & Search Location'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppConfig.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -786,22 +895,112 @@ class _AddParkingSpotScreenState extends State<AddParkingSpotScreen> {
                     buildingsEnabled: true,
                     trafficEnabled: false,
                     indoorViewEnabled: true,
+                    onCameraMoveStarted: () {
+                      debugPrint('🗺️ Camera move started');
+                    },
+                    onCameraIdle: () {
+                      debugPrint('🗺️ Camera idle');
+                    },
                   ),
                   // Loading indicator
                   if (_isMapLoading)
                     Container(
-                      color: Colors.white.withOpacity(0.8),
-                      child: const Center(
+                      color: Colors.white.withOpacity(0.9),
+                      child: Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 16),
-                            Text(
+                            const CircularProgressIndicator(),
+                            const SizedBox(height: 16),
+                            const Text(
                               'Loading Map...',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            if (_mapError != null) ...[
+                              const SizedBox(height: 8),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 32),
+                                child: Text(
+                                  _mapError!,
+                                  style: TextStyle(
+                                    color: Colors.red.shade700,
+                                    fontSize: 12,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  // Error message overlay
+                  if (_mapError != null && !_isMapLoading)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.shade300),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _mapError!,
+                                style: TextStyle(
+                                  color: Colors.red.shade900,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              color: Colors.red.shade700,
+                              onPressed: () {
+                                setState(() {
+                                  _mapError = null;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  // Instructions overlay
+                  if (!_isMapLoading && _mapError == null)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.blue.shade700, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Tap to drop pin • Drag marker to adjust',
+                                style: TextStyle(
+                                  color: Colors.blue.shade900,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ),
                           ],
