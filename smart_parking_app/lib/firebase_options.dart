@@ -52,7 +52,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '166350393893',
     projectId: 'smart-parking-kalyan-2024',
     authDomain: 'smart-parking-kalyan-2024.firebaseapp.com',
-    storageBucket: 'smart-parking-kalyan-2024.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -60,7 +59,6 @@ class DefaultFirebaseOptions {
     appId: '1:166350393893:android:f666198a8b084c522fe5cc',
     messagingSenderId: '166350393893',
     projectId: 'smart-parking-kalyan-2024',
-    storageBucket: 'smart-parking-kalyan-2024.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -68,7 +66,6 @@ class DefaultFirebaseOptions {
     appId: '1:166350393893:ios:c47fb768738e40742fe5cc',
     messagingSenderId: '166350393893',
     projectId: 'smart-parking-kalyan-2024',
-    storageBucket: 'smart-parking-kalyan-2024.firebasestorage.app',
     iosBundleId: 'com.example.smartParkingApp',
   );
 }

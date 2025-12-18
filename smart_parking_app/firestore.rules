@@ -101,9 +101,24 @@ service cloud.firestore {
     match /parkingSpots/{spotId} {
       // ALL authenticated users can read parking spots (for discovery)
       allow read: if isAuthenticated();
+
+      // Allow authenticated users to adjust availability during booking flows.
+      // Only permits +/-1 changes to availableSpots and updates the timestamp.
+      allow update: if isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['availableSpots', 'updatedAt']) &&
+        request.resource.data.availableSpots is int &&
+        request.resource.data.availableSpots >= 0 &&
+        request.resource.data.availableSpots <= resource.data.totalSpots &&
+        (
+          request.resource.data.availableSpots == resource.data.availableSpots - 1 ||
+          request.resource.data.availableSpots == resource.data.availableSpots + 1
+        );
       
-      // ONLY admins can create/update/delete parking spots
-      allow create, update, delete: if isAdmin();
+      // ONLY admins can create/delete (full management)
+      allow create, delete: if isAdmin();
+
+      // Admin override for any update
+      allow update: if isAdmin();
     }
     
     // ─────────────────────

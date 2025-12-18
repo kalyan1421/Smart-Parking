@@ -43,7 +43,6 @@ dependencies:
   firebase_auth: ^6.0.2
   cloud_firestore: ^6.0.1
   # firebase_messaging: ^14.7.10  # Removed for now
-  firebase_storage: ^13.0.1
   
   # Maps & Location
   google_maps_flutter: ^2.12.1  

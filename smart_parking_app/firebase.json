@@ -17,9 +17,6 @@
       }
     ]
   },
-  "storage": {
-    "rules": "storage.rules"
-  },
   "flutter": {
     "platforms": {
       "android": {

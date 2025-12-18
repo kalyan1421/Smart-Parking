@@ -69,6 +69,59 @@ class BookingProvider with ChangeNotifier {
   }) async {
     _setLoading(true);
     try {
+      // Check for conflicting bookings before transaction
+      // Only check for active/confirmed bookings that haven't ended yet
+      final now = DateTime.now();
+      final conflictingBookings = await DatabaseService.collection('bookings')
+          .where('parkingSpotId', isEqualTo: parkingSpot.id)
+          .where('status', whereIn: ['confirmed', 'active'])
+          .limit(100)
+          .get();
+      
+      print('🧩 DEBUG: Checking conflicts for spot ${parkingSpot.id}');
+      print('🧩 DEBUG: New booking time: $startTime to $endTime');
+      print('🧩 DEBUG: Found ${conflictingBookings.docs.length} potential conflicting bookings');
+      
+      bool hasConflict = false;
+      Booking? conflictingBooking;
+      for (var doc in conflictingBookings.docs) {
+        final booking = Booking.fromFirestore(doc);
+        
+        // Skip if booking has already ended (past bookings don't block new ones)
+        if (booking.endTime.isBefore(now)) {
+          print('🧩 DEBUG: Skipping past booking ${booking.id} (ended: ${booking.endTime}, now: $now)');
+          continue;
+        }
+        
+        // Skip if booking is cancelled, completed, or expired
+        if (booking.isCancelled || booking.isCompleted || booking.isExpired) {
+          print('🧩 DEBUG: Skipping ${booking.status} booking ${booking.id}');
+          continue;
+        }
+        
+        // Check for time overlap
+        if (_isTimeConflict(startTime, endTime, booking.startTime, booking.endTime)) {
+          hasConflict = true;
+          conflictingBooking = booking;
+          print('🧩 DEBUG: ⚠️ Conflict found with booking ${booking.id}');
+          print('🧩 DEBUG: Conflicting booking time: ${booking.startTime} to ${booking.endTime}');
+          print('🧩 DEBUG: Conflicting booking status: ${booking.status}');
+          break;
+        } else {
+          print('🧩 DEBUG: No conflict with booking ${booking.id} (${booking.startTime} to ${booking.endTime})');
+        }
+      }
+      
+      if (hasConflict) {
+        final conflictMsg = conflictingBooking != null
+            ? 'Time slot conflicts with existing booking (${conflictingBooking.startTime} - ${conflictingBooking.endTime})'
+            : 'Time slot is already booked';
+        print('🧩 DEBUG: ❌ Booking rejected: $conflictMsg');
+        throw Exception(conflictMsg);
+      }
+      
+      print('🧩 DEBUG: ✅ No conflicts found, proceeding with booking creation');
+      
       // Use Firestore transaction to ensure data consistency
       final bookingId = _uuid.v4();
       Booking? createdBooking;
@@ -88,27 +141,6 @@ class BookingProvider with ChangeNotifier {
         // Check availability
         if (spot.availableSpots <= 0) {
           throw Exception('No available spots');
-        }
-        
-        // Check for conflicting bookings
-        // Limit to 100 bookings per spot (should be more than enough for conflict checking)
-        final conflictingBookings = await DatabaseService.collection('bookings')
-            .where('parkingSpotId', isEqualTo: parkingSpot.id)
-            .where('status', whereIn: ['confirmed', 'active'])
-            .limit(100)
-            .get();
-        
-        bool hasConflict = false;
-        for (var doc in conflictingBookings.docs) {
-          final booking = Booking.fromFirestore(doc);
-          if (_isTimeConflict(startTime, endTime, booking.startTime, booking.endTime)) {
-            hasConflict = true;
-            break;
-          }
-        }
-        
-        if (hasConflict) {
-          throw Exception('Time slot is already booked');
         }
         
         // Calculate total price
