@@ -5,6 +5,7 @@ import 'package:smart_parking_app/config/routes.dart';
 import 'package:smart_parking_app/core/utils/validators.dart';
 import 'package:smart_parking_app/providers/auth_provider.dart';
 import 'package:smart_parking_app/widgets/common/loading_indicator.dart';
+import 'package:smart_parking_app/models/user.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -34,7 +35,12 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     
     if (success && mounted) {
-      Navigator.pushReplacementNamed(context, AppRoutes.home);
+      final user = authProvider.currentUser;
+      if (user != null && user.hasRole(UserRole.parkingOperator)) {
+        Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
+      } else {
+        Navigator.pushReplacementNamed(context, AppRoutes.home);
+      }
     }
   }
   
@@ -63,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     SizedBox(height: 16),
                     Text(
-                      'Smart Parking',
+                      'QuickPark',
                       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).primaryColor,
@@ -194,7 +200,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: authProvider.isLoading ? null : () async {
                           final success = await authProvider.signInWithGoogle();
                           if (success && mounted) {
-                            if (!authProvider.isProfileComplete) {
+                            final user = authProvider.currentUser;
+                            if (user != null && user.hasRole(UserRole.parkingOperator)) {
+                              Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
+                            } else if (!authProvider.isProfileComplete) {
                               Navigator.pushReplacementNamed(context, AppRoutes.completeProfile);
                             } else {
                               Navigator.pushReplacementNamed(context, AppRoutes.home);

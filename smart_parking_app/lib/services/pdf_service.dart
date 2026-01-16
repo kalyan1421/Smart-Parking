@@ -238,7 +238,7 @@ class PdfService {
               ),
               pw.SizedBox(height: 5),
               pw.Text(
-                'Smart Parking Solutions',
+                'QuickPark Solutions',
                 style: pw.TextStyle(
                   fontSize: 14,
                   color: PdfColors.blue600,

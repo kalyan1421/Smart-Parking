@@ -7,6 +7,7 @@ import '../screens/parking/parking_management_screen.dart';
 import '../screens/parking/parking_map_view_screen.dart';
 import '../screens/bookings/booking_management_screen.dart';
 import '../screens/users/user_management_screen.dart';
+import '../screens/qr_scanner_screen.dart';
 
 class AppRoutes {
   static const String login = '/login';
@@ -16,6 +17,7 @@ class AppRoutes {
   static const String parkingMapView = '/parking-map';
   static const String bookingManagement = '/bookings';
   static const String userManagement = '/users';
+  static const String qrScanner = '/qr-scanner';
 
   static Map<String, WidgetBuilder> get routes {
     return {
@@ -26,6 +28,7 @@ class AppRoutes {
       parkingMapView: (context) => const ParkingMapViewScreen(),
       bookingManagement: (context) => const BookingManagementScreen(),
       userManagement: (context) => const UserManagementScreen(),
+      qrScanner: (context) => QRScannerScreen(),
     };
   }
 
@@ -45,6 +48,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (context) => const BookingManagementScreen());
       case userManagement:
         return MaterialPageRoute(builder: (context) => const UserManagementScreen());
+      case qrScanner:
+        return MaterialPageRoute(builder: (context) => QRScannerScreen());
       default:
         return MaterialPageRoute(
           builder: (context) => Scaffold(

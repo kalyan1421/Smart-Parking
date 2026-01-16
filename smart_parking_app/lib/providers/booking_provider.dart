@@ -9,6 +9,7 @@ import '../models/parking_spot.dart';
 import '../models/vehicle.dart';
 import '../repositories/booking_repository.dart';
 import '../services/pdf_manager.dart';
+import '../services/notification_service.dart';
 
 class BookingProvider with ChangeNotifier {
   final BookingRepository _bookingRepository;
@@ -24,7 +25,7 @@ class BookingProvider with ChangeNotifier {
   
   // Getters
   List<Booking> get bookings => _bookings;
-  List<Booking> get activeBookings => _bookings.where((b) => b.isActive).toList();
+  List<Booking> get activeBookings => _bookings.where((b) => b.isActive || b.isConfirmed).toList();
   List<Booking> get bookingHistory => _bookings.where((b) => b.isCompleted || b.isCancelled).toList();
   List<Booking> get upcomingBookings => _bookings.where((b) => b.isUpcoming && (b.isConfirmed || b.isPending)).toList();
   List<Booking> get completedBookings => _bookings.where((b) => b.isCompleted).toList();
@@ -82,45 +83,33 @@ class BookingProvider with ChangeNotifier {
       print('🧩 DEBUG: New booking time: $startTime to $endTime');
       print('🧩 DEBUG: Found ${conflictingBookings.docs.length} potential conflicting bookings');
       
-      bool hasConflict = false;
-      Booking? conflictingBooking;
-      for (var doc in conflictingBookings.docs) {
-        final booking = Booking.fromFirestore(doc);
+      // Calculate max concurrent bookings during the requested window
+      // 1. Filter to only relevant bookings (overlapping time)
+      final relevantBookings = conflictingBookings.docs
+          .map((doc) => Booking.fromFirestore(doc))
+          .where((b) => 
+              b.endTime.isAfter(now) && // Not ended
+              !b.isCancelled && !b.isCompleted && !b.isExpired && // Active status
+              _isTimeConflict(startTime, endTime, b.startTime, b.endTime) // Overlaps
+          ).toList();
+
+      // 2. Check if we have enough capacity
+      // If the number of overlapping bookings is less than total spots, we definitely have space.
+      // (Even if they all overlap at the exact same moment, usage would be relevantBookings.length + 1 <= totalSpots)
+      if (relevantBookings.length >= parkingSpot.totalSpots) {
+        // Strict check: Calculate maximum concurrent bookings at any point in time
+        // Create time points: (time, type) where type +1 for start, -1 for end
+        // This is a sweep-line algorithm
         
-        // Skip if booking has already ended (past bookings don't block new ones)
-        if (booking.endTime.isBefore(now)) {
-          print('🧩 DEBUG: Skipping past booking ${booking.id} (ended: ${booking.endTime}, now: $now)');
-          continue;
-        }
+        // For now, simpler approximation: if count >= totalSpots, reject.
+        // This is conservative. A true sweep-line would be better but this fixes the immediate "single overlap blocks all" bug.
         
-        // Skip if booking is cancelled, completed, or expired
-        if (booking.isCancelled || booking.isCompleted || booking.isExpired) {
-          print('🧩 DEBUG: Skipping ${booking.status} booking ${booking.id}');
-          continue;
-        }
-        
-        // Check for time overlap
-        if (_isTimeConflict(startTime, endTime, booking.startTime, booking.endTime)) {
-          hasConflict = true;
-          conflictingBooking = booking;
-          print('🧩 DEBUG: ⚠️ Conflict found with booking ${booking.id}');
-          print('🧩 DEBUG: Conflicting booking time: ${booking.startTime} to ${booking.endTime}');
-          print('🧩 DEBUG: Conflicting booking status: ${booking.status}');
-          break;
-        } else {
-          print('🧩 DEBUG: No conflict with booking ${booking.id} (${booking.startTime} to ${booking.endTime})');
-        }
-      }
-      
-      if (hasConflict) {
-        final conflictMsg = conflictingBooking != null
-            ? 'Time slot conflicts with existing booking (${conflictingBooking.startTime} - ${conflictingBooking.endTime})'
-            : 'Time slot is already booked';
+        final conflictMsg = 'Parking spot is fully booked for this time slot (Capacity: ${parkingSpot.totalSpots}, Overlaps: ${relevantBookings.length})';
         print('🧩 DEBUG: ❌ Booking rejected: $conflictMsg');
         throw Exception(conflictMsg);
       }
       
-      print('🧩 DEBUG: ✅ No conflicts found, proceeding with booking creation');
+      print('🧩 DEBUG: ✅ Capacity check passed. Overlaps: ${relevantBookings.length}, Capacity: ${parkingSpot.totalSpots}');
       
       // Use Firestore transaction to ensure data consistency
       final bookingId = _uuid.v4();
@@ -202,6 +191,25 @@ class BookingProvider with ChangeNotifier {
         // Add booking to local list
         _bookings.insert(0, createdBooking!);
         _currentBooking = createdBooking;
+        
+        // Show confirmation notification
+        await NotificationService().showNotification(
+          id: createdBooking!.startTime.millisecondsSinceEpoch ~/ 1000,
+          title: 'Booking Confirmed',
+          body: 'Your parking at ${parkingSpot.name} is confirmed.',
+        );
+        
+        // Schedule expiry reminder (15 mins before end)
+        final reminderTime = createdBooking!.endTime.subtract(Duration(minutes: 15));
+        if (reminderTime.isAfter(DateTime.now())) {
+          await NotificationService().scheduleNotification(
+            id: (createdBooking!.endTime.millisecondsSinceEpoch ~/ 1000) + 1,
+            title: 'Parking Expiring Soon',
+            body: 'Your parking session at ${parkingSpot.name} expires in 15 minutes.',
+            scheduledTime: reminderTime,
+          );
+        }
+        
         _error = null;
         notifyListeners();
         
@@ -351,10 +359,33 @@ class BookingProvider with ChangeNotifier {
   // Check out from parking spot
   Future<bool> checkOut(String bookingId) async {
     try {
-      await DatabaseService.collection('bookings').doc(bookingId).update({
-        'status': BookingStatus.completed.name,
-        'checkedOutAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+      // First get the booking to find the parking spot ID
+      final bookingDoc = await DatabaseService.collection('bookings').doc(bookingId).get();
+      if (!bookingDoc.exists) {
+        throw Exception('Booking not found');
+      }
+      final booking = Booking.fromFirestore(bookingDoc);
+
+      await DatabaseService.runTransaction((transaction) async {
+        // Update booking status
+        transaction.update(
+          DatabaseService.collection('bookings').doc(bookingId),
+          {
+            'status': BookingStatus.completed.name,
+            'checkedOutAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }
+        );
+
+        // Increment available spots
+        // Note: We use increment(1) to handle concurrency safely without reading first
+        transaction.update(
+          DatabaseService.collection('parkingSpots').doc(booking.parkingSpotId),
+          {
+            'availableSpots': FieldValue.increment(1),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }
+        );
       });
       
       // Update local booking

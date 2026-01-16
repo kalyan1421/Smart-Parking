@@ -10,6 +10,9 @@ import 'package:smart_parking_app/screens/parking/parking_directions_screen.dart
 import 'package:smart_parking_app/widgets/common/loading_indicator.dart';
 import 'package:smart_parking_app/services/pdf_manager.dart';
 import 'package:smart_parking_app/models/parking_spot.dart';
+import 'package:smart_parking_app/screens/parking/rate_parking_screen.dart';
+import 'package:smart_parking_app/screens/parking/report_issue_screen.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
   @override
@@ -328,6 +331,49 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
                   ),
                   SizedBox(height: 24),
                   
+                  // QR Code Section
+                  if (booking.isActive || booking.isConfirmed) ...[
+                    Center(
+                      child: Column(
+                        children: [
+                          Text(
+                            'Scan to Enter/Exit',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          SizedBox(height: 12),
+                          Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: QrImageView(
+                              data: booking.qrCode ?? booking.id,
+                              version: QrVersions.auto,
+                              size: 200.0,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            booking.qrCode ?? booking.id,
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                              fontFamily: 'Courier',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 24),
+                    _buildDivider(),
+                    SizedBox(height: 24),
+                  ],
+
                   // Booking details
                   _buildDetailRow(
                     context,
@@ -412,6 +458,68 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
                         ),
                       ],
                     ),
+                    SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ReportIssueScreen(booking: booking),
+                            ),
+                          );
+                        },
+                        icon: Icon(Icons.report_problem, color: Colors.red),
+                        label: Text('Report Issue', style: TextStyle(color: Colors.red)),
+                      ),
+                    ),
+                  ] else if (booking.isCompleted) ...[
+                    if (booking.feedback == null)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => RateParkingScreen(booking: booking),
+                              ),
+                            ).then((value) {
+                              if (value == true) {
+                                _loadBookings(); // Refresh to show rating
+                              }
+                            });
+                          },
+                          icon: Icon(Icons.star),
+                          label: Text('RATE PARKING'),
+                          style: ElevatedButton.styleFrom(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            backgroundColor: Colors.amber,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.amber[200]!),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.star, color: Colors.amber),
+                            SizedBox(width: 8),
+                            Text(
+                              'You rated this ${booking.feedback!['rating']} stars',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber[900]),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ],
               ),

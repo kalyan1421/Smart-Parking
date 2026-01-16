@@ -14,6 +14,8 @@ import 'package:smart_parking_app/providers/parking_provider.dart';
 import 'package:smart_parking_app/providers/traffic_provider.dart';
 import 'package:smart_parking_app/screens/parking/id_generator.dart';
 import 'package:smart_parking_app/screens/parking/parking_directions_screen.dart';
+import 'package:smart_parking_app/services/pdf_service.dart';
+import 'package:smart_parking_app/services/weather_service.dart';
 import 'package:smart_parking_app/widgets/common/loading_indicator.dart';
 import 'package:intl/intl.dart';
 
@@ -29,6 +31,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Set<Circle> _trafficHotspots = {};
   String _trafficCondition = 'Unknown';
   Color _trafficColor = Colors.grey;
+  WeatherData? _weatherData;
+  bool _isLoadingWeather = false;
   
   @override
   void initState() {
@@ -87,6 +91,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         
         // Analyze overall traffic condition
         _analyzeTrafficCondition(trafficProvider);
+        
+        // Load weather data
+        _loadWeather(locationProvider.currentLocation!.latitude, locationProvider.currentLocation!.longitude);
       }
       
       setState(() {
@@ -140,36 +147,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
   
   void _analyzeTrafficCondition(TrafficProvider trafficProvider) {
-    // Count traffic levels
-    int low = 0, medium = 0, high = 0, severe = 0;
-    
-    for (final bot in trafficProvider.trafficBots) {
-      switch (bot.trafficLevel) {
-        case TrafficLevel.low:
-          low++;
-          break;
-        case TrafficLevel.medium:
-          medium++;
-          break;
-        case TrafficLevel.high:
-          high++;
-          break;
-        case TrafficLevel.severe:
-          severe++;
-          break;
-      }
-    }
-    
-    // Determine overall condition
-    if (severe > 5 || high > 10) {
-      _trafficCondition = 'Heavy';
-      _trafficColor = Colors.red;
-    } else if (medium > 10 || high > 5) {
-      _trafficCondition = 'Moderate';
-      _trafficColor = Colors.orange;
-    } else {
-      _trafficCondition = 'Light';
-      _trafficColor = Colors.green;
+    // ... (rest of the method)
+  }
+
+  Future<void> _loadWeather(double lat, double lon) async {
+    setState(() {
+      _isLoadingWeather = true;
+    });
+    try {
+      final weatherService = WeatherService();
+      final data = await weatherService.getCurrentWeather(lat, lon);
+      setState(() {
+        _weatherData = data;
+        _isLoadingWeather = false;
+      });
+    } catch (e) {
+      print('Error loading weather: $e');
+      setState(() {
+        _isLoadingWeather = false;
+      });
     }
   }
   
@@ -466,7 +462,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('Smart Parking'),
+        title: Text('QuickPark'),
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
@@ -549,10 +545,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     ),
                                   ),
                                   SizedBox(height: 8),
-                                  Text(
-                                    'Find and reserve parking spots easily.',
-                                    style: Theme.of(context).textTheme.bodyMedium,
-                                  ),
+                                  if (_weatherData != null)
+                                    Row(
+                                      children: [
+                                        Image.network(_weatherData!.iconUrl, width: 24, height: 24),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          '${_weatherData!.tempC.toStringAsFixed(1)}°C - ${_weatherData!.conditionText}',
+                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                            color: Colors.blue[700],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  else if (_isLoadingWeather)
+                                    SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                  else
+                                    Text(
+                                      'Find and reserve parking spots easily.',
+                                      style: Theme.of(context).textTheme.bodyMedium,
+                                    ),
                                 ],
                               ),
                             ),
@@ -809,8 +822,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     SizedBox(height: 16),
                     
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      alignment: WrapAlignment.start,
                       children: [
                         _buildQuickActionCard(
                           context,
@@ -822,21 +837,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         _buildQuickActionCard(
                           context,
-                          Icons.list,
-                          'All Parking',
-                          () {
-                            Navigator.pushNamed(context, AppRoutes.parkingList);
-                          },
-                        ),
-                        _buildQuickActionCard(
-                          context,
                           Icons.history,
-                          'Bookings',
+                          'My Bookings',
                           () {
                             Navigator.pushNamed(context, AppRoutes.bookingHistory);
                           },
                           badge: bookingProvider.activeBookings.length > 0 ? 
                             bookingProvider.activeBookings.length.toString() : null,
+                        ),
+                        _buildQuickActionCard(
+                          context,
+                          Icons.account_balance_wallet,
+                          'Wallet',
+                          () {
+                            Navigator.pushNamed(context, AppRoutes.wallet);
+                          },
+                        ),
+                        _buildQuickActionCard(
+                          context,
+                          Icons.chat,
+                          'Support',
+                          () {
+                            Navigator.pushNamed(context, AppRoutes.chat);
+                          },
+                        ),
+                        _buildQuickActionCard(
+                          context,
+                          Icons.qr_code_scanner,
+                          'Scan QR',
+                          () {
+                            Navigator.pushNamed(context, AppRoutes.scanQr);
+                          },
                         ),
                       ],
                     ),

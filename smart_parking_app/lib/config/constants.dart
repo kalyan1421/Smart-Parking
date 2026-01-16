@@ -9,7 +9,7 @@ class AppConstants {
   static const String reviewsCollection = 'reviews';
   
   // App constants
-  static const String appName = 'Smart Parking';
+  static const String appName = 'QuickPark';
   static const String appVersion = '1.0.0';
   
   // Default values

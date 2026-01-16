@@ -8,7 +8,7 @@ class AppConfig {
   static const String firebaseProjectId = 'smart-parking-app';
   
   // App Information
-  static const String appName = 'Smart Parking';
+  static const String appName = 'QuickPark';
   static const String appVersion = '1.0.0';
   
   // App Settings

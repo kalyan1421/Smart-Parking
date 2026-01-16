@@ -16,6 +16,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _emergencyContactController = TextEditingController();
   bool _isEditing = false;
   int _activeBookingsCount = 0;
   
@@ -30,6 +32,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _cityController.dispose();
+    _emergencyContactController.dispose();
     super.dispose();
   }
   
@@ -38,6 +42,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (authProvider.currentUser != null) {
       _nameController.text = authProvider.currentUser!.displayName;
       _phoneController.text = authProvider.currentUser!.phoneNumber ?? '';
+      _cityController.text = authProvider.currentUser!.city ?? '';
+      _emergencyContactController.text = authProvider.currentUser!.emergencyContact ?? '';
     }
   }
   
@@ -60,6 +66,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final success = await authProvider.updateProfile(
       name: _nameController.text,
       phoneNumber: _phoneController.text,
+      city: _cityController.text,
+      emergencyContact: _emergencyContactController.text,
     );
     
     if (success && mounted) {
@@ -316,6 +324,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         return null;
                       },
                     ),
+                    
+                    SizedBox(height: 16),
+                    
+                    // City field
+                    TextFormField(
+                      controller: _cityController,
+                      decoration: InputDecoration(
+                        labelText: 'City',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.location_city),
+                      ),
+                      enabled: _isEditing,
+                    ),
+                    
+                    SizedBox(height: 16),
+                    
+                    // Emergency Contact field
+                    TextFormField(
+                      controller: _emergencyContactController,
+                      decoration: InputDecoration(
+                        labelText: 'Emergency Contact',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.contact_phone),
+                      ),
+                      enabled: _isEditing,
+                      keyboardType: TextInputType.phone,
+                    ),
                   ],
                 ),
               ),
@@ -367,7 +402,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Icons.directions_car,
                     'Manage Vehicles',
                     () {
-                      // TODO: Navigate to vehicles screen
+                      Navigator.pushNamed(context, AppRoutes.manageVehicles);
                     },
                   ),
                   _buildSettingItem(

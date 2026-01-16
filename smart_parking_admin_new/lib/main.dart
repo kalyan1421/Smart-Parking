@@ -10,8 +10,9 @@ import 'config/routes.dart';
 import 'config/app_config.dart';
 import 'providers/auth_provider.dart' as app_auth;
 import 'providers/admin_provider.dart';
-import 'screens/auth/login_screen.dart';
+import 'services/admin_service.dart';
 import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/auth/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,6 +59,7 @@ class SmartParkingAdminApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => app_auth.AuthProvider()),
         ChangeNotifierProvider(create: (_) => AdminProvider()),
+        Provider<AdminService>(create: (_) => AdminService()),
       ],
       child: MaterialApp(
         title: AppConfig.appName,

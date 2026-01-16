@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 
 class AppConfig {
-  static const String appName = 'Smart Parking Admin';
+  static const String appName = 'Admin Quickpark';
   static const String version = '1.0.0';
   
   // Firebase configuration

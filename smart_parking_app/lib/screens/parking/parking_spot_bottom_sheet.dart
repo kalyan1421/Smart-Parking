@@ -7,8 +7,10 @@ import 'package:smart_parking_app/models/parking_spot.dart' hide TimeOfDay;
 import 'package:smart_parking_app/providers/parking_provider.dart';
 import 'package:smart_parking_app/providers/booking_provider.dart';
 import 'package:smart_parking_app/providers/auth_provider.dart';
+import 'package:smart_parking_app/providers/wallet_provider.dart';
 import 'package:smart_parking_app/screens/parking/booking_confirmation_screen.dart';
 import 'package:smart_parking_app/widgets/common/loading_indicator.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ParkingSpotBottomSheet extends StatefulWidget {
   @override
@@ -19,6 +21,24 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
   DateTime _startTime = DateTime.now().add(Duration(minutes: 15));
   DateTime _endTime = DateTime.now().add(Duration(hours: 1, minutes: 15));
   bool _isBooking = false;
+  bool _useWallet = false;
+
+  Future<void> _launchMaps(double lat, double lon) async {
+    final googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
+    if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
+      await launchUrl(Uri.parse(googleMapsUrl));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not launch maps')),
+      );
+    }
+  }
+
+  bool _isPeakTime() {
+    final now = DateTime.now();
+    // Simple peak time logic: 8 AM - 10 AM and 5 PM - 7 PM
+    return (now.hour >= 8 && now.hour <= 10) || (now.hour >= 17 && now.hour <= 19);
+  }
 
   Future<void> _selectTime(BuildContext context, bool isStartTime) async {
     final TimeOfDay? picked = await showTimePicker(
@@ -114,6 +134,23 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
     // Calculate total price
     final totalPrice = _calculateTotalPrice();
 
+    // Check wallet balance if selected
+    if (_useWallet) {
+      final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+      // Ensure wallet data is loaded
+      if (walletProvider.balance == 0) {
+         await walletProvider.loadWalletData(userId);
+      }
+      
+      if (walletProvider.balance < totalPrice) {
+        setState(() => _isBooking = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Insufficient wallet balance. Please add money.')),
+        );
+        return;
+      }
+    }
+
     // Create booking in database
     final booking = await bookingProvider.createBooking(
       userId,
@@ -123,11 +160,17 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
       totalPrice,
     );
     
-    setState(() {
-      _isBooking = false;
-    });
-    
     if (booking != null) {
+      // Process wallet payment if selected
+      if (_useWallet) {
+        final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+        await walletProvider.payForBooking(userId, totalPrice, booking.id);
+      }
+      
+      setState(() {
+        _isBooking = false;
+      });
+      
       // Success! Close bottom sheet
       Navigator.of(context).pop();
       
@@ -231,10 +274,55 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
             style: Theme.of(context).textTheme.titleLarge,
           ),
           SizedBox(height: 4),
-          Text(
-            spot.description,
-            style: Theme.of(context).textTheme.bodyMedium,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  spot.address.isNotEmpty ? spot.address : spot.description,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.directions, color: Colors.blue),
+                onPressed: () => _launchMaps(spot.latitude, spot.longitude),
+              ),
+            ],
           ),
+          SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.star, color: Colors.amber, size: 18),
+              SizedBox(width: 4),
+              Text(
+                '${spot.rating.toStringAsFixed(1)} (${spot.reviewCount} reviews)',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          if (_isPeakTime()) ...[
+            SizedBox(height: 8),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.red[200]!),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.red, size: 16),
+                  SizedBox(width: 4),
+                  Text(
+                    'Peak Time - High Demand',
+                    style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          ],
           SizedBox(height: 16),
           Row(
             children: [
@@ -364,7 +452,24 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
               ],
             ),
           ),
-          SizedBox(height: 24),
+          SizedBox(height: 16),
+          // Wallet Payment Option
+          Consumer<WalletProvider>(
+            builder: (context, walletProvider, _) {
+              return CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Pay with Wallet (Balance: ${AppConfig.currencySymbol}${walletProvider.balance.toStringAsFixed(2)})'),
+                value: _useWallet,
+                onChanged: (value) {
+                  setState(() {
+                    _useWallet = value ?? false;
+                  });
+                },
+                secondary: Icon(Icons.account_balance_wallet, color: Colors.blue),
+              );
+            },
+          ),
+          SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(

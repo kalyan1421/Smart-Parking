@@ -190,6 +190,75 @@ class ParkingProvider extends ChangeNotifier {
   // NOTE: Parking spot creation is now handled by admin app only
   // Users can only view and book existing parking spots
   
+  // Add a new parking spot
+  Future<bool> addParkingSpot(ParkingSpot spot) async {
+    _setLoading(true);
+    try {
+      final docRef = DatabaseService.collection('parkingSpots').doc();
+      final spotWithId = spot.copyWith(id: docRef.id);
+      
+      await docRef.set(spotWithId.toMap());
+      
+      _parkingSpots.insert(0, spotWithId);
+      _applyFilters();
+      
+      _error = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = 'Failed to add parking spot: $e';
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Update a parking spot
+  Future<bool> updateParkingSpot(ParkingSpot spot) async {
+    _setLoading(true);
+    try {
+      await DatabaseService.collection('parkingSpots').doc(spot.id).update(spot.toMap());
+      
+      final index = _parkingSpots.indexWhere((s) => s.id == spot.id);
+      if (index != -1) {
+        _parkingSpots[index] = spot;
+        _applyFilters();
+      }
+      
+      _error = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = 'Failed to update parking spot: $e';
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Delete a parking spot
+  Future<bool> deleteParkingSpot(String spotId) async {
+    _setLoading(true);
+    try {
+      await DatabaseService.collection('parkingSpots').doc(spotId).delete();
+      
+      _parkingSpots.removeWhere((s) => s.id == spotId);
+      _applyFilters();
+      
+      _error = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = 'Failed to delete parking spot: $e';
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // Update spot availability
   Future<bool> updateSpotAvailability(String spotId, int availableSpots) async {
     try {

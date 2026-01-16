@@ -9,6 +9,7 @@ import 'package:smart_parking_app/providers/traffic_provider.dart';
 import 'package:smart_parking_app/models/parking_spot.dart';
 import 'package:smart_parking_app/screens/parking/parking_spot_bottom_sheet.dart';
 import 'package:smart_parking_app/widgets/common/loading_indicator.dart';
+import 'package:smart_parking_app/screens/parking/filter_bar.dart';
 
 class ParkingMapScreen extends StatefulWidget {
   const ParkingMapScreen({super.key});
@@ -202,7 +203,30 @@ class _ParkingMapScreenState extends State<ParkingMapScreen> {
       ),
       body: Column(
         children: [
-          // ParkingFilterBar(),
+          // Search Bar
+          Container(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search location, area, or landmark',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                contentPadding: EdgeInsets.symmetric(horizontal: 20),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+              onSubmitted: (query) async {
+                final parkingProvider = Provider.of<ParkingProvider>(context, listen: false);
+                await parkingProvider.searchParkingSpots(query);
+              },
+            ),
+          ),
+          
+          // Filters
+          ParkingFilterBar(),
+          
           Expanded(
             child: Stack(
               children: [

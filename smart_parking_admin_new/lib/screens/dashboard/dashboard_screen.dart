@@ -108,6 +108,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
       drawer: isDesktop ? null : const AdminDrawer(),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.pushNamed(context, AppRoutes.qrScanner);
+        },
+        child: const Icon(Icons.qr_code_scanner),
+      ),
       body: Row(
         children: [
           if (isDesktop) const AdminDrawer(),

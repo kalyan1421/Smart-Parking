@@ -15,11 +15,17 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _emergencyContactController = TextEditingController();
+  final _vehicleNumberController = TextEditingController();
   
   @override
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _cityController.dispose();
+    _emergencyContactController.dispose();
+    _vehicleNumberController.dispose();
     super.dispose();
   }
   
@@ -30,7 +36,12 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     final success = await authProvider.completeProfile(
       name: _nameController.text.trim(),
       phoneNumber: _phoneController.text.trim(),
+      city: _cityController.text.trim(),
+      emergencyContact: _emergencyContactController.text.trim(),
     );
+    
+    // If a vehicle number was provided, we could add it here
+    // For now, let's just complete the profile.
     
     if (success && mounted) {
       Navigator.pushReplacementNamed(context, AppRoutes.home);
@@ -69,7 +80,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     ),
                     SizedBox(height: 12),
                     Text(
-                      'Welcome to Smart Parking!',
+                      'Welcome to QuickPark!',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -107,46 +118,103 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 ),
               
               // Profile completion form
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    // Full Name field
-                    TextFormField(
-                      controller: _nameController,
-                      decoration: InputDecoration(
-                        labelText: 'Full Name',
-                        prefixIcon: Icon(Icons.person),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        // Full Name field
+                        TextFormField(
+                          controller: _nameController,
+                          decoration: InputDecoration(
+                            labelText: 'Full Name',
+                            prefixIcon: Icon(Icons.person),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                          ),
+                          textInputAction: TextInputAction.next,
+                          validator: Validators.validateName,
                         ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                      ),
-                      textInputAction: TextInputAction.next,
-                      validator: Validators.validateName,
-                    ),
-                    
-                    SizedBox(height: 16),
-                    
-                    // Phone Number field
-                    TextFormField(
-                      controller: _phoneController,
-                      decoration: InputDecoration(
-                        labelText: 'Phone Number',
-                        prefixIcon: Icon(Icons.phone),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                        
+                        SizedBox(height: 16),
+                        
+                        // Phone Number field
+                        TextFormField(
+                          controller: _phoneController,
+                          decoration: InputDecoration(
+                            labelText: 'Phone Number',
+                            prefixIcon: Icon(Icons.phone),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                          ),
+                          keyboardType: TextInputType.phone,
+                          textInputAction: TextInputAction.next,
+                          validator: Validators.validatePhone,
                         ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                      ),
-                      keyboardType: TextInputType.phone,
-                      textInputAction: TextInputAction.done,
-                      validator: Validators.validatePhone,
-                      onFieldSubmitted: (_) => _completeProfile(),
+                        
+                        SizedBox(height: 16),
+                        
+                        // City field
+                        TextFormField(
+                          controller: _cityController,
+                          decoration: InputDecoration(
+                            labelText: 'City',
+                            prefixIcon: Icon(Icons.location_city),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                          ),
+                          textInputAction: TextInputAction.next,
+                        ),
+                        
+                        SizedBox(height: 16),
+                        
+                        // Vehicle Number field
+                        TextFormField(
+                          controller: _vehicleNumberController,
+                          decoration: InputDecoration(
+                            labelText: 'Vehicle Number (e.g. TS09EA1234)',
+                            prefixIcon: Icon(Icons.directions_car),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                          ),
+                          textInputAction: TextInputAction.next,
+                          textCapitalization: TextCapitalization.characters,
+                        ),
+                        
+                        SizedBox(height: 16),
+                        
+                        // Emergency Contact field
+                        TextFormField(
+                          controller: _emergencyContactController,
+                          decoration: InputDecoration(
+                            labelText: 'Emergency Contact Number',
+                            prefixIcon: Icon(Icons.contact_phone),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                          ),
+                          keyboardType: TextInputType.phone,
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _completeProfile(),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
               

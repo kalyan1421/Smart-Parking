@@ -3,9 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_parking_app/providers/parking_provider.dart';
 import 'package:smart_parking_app/providers/location_provider.dart';
+import 'package:smart_parking_app/providers/booking_provider.dart';
+import 'package:smart_parking_app/providers/auth_provider.dart';
 import 'package:smart_parking_app/models/parking_spot.dart';
+import 'package:smart_parking_app/models/booking.dart';
 import 'package:smart_parking_app/widgets/common/loading_indicator.dart';
 import 'package:smart_parking_app/screens/parking/parking_spot_bottom_sheet.dart';
+import 'package:smart_parking_app/screens/parking/parking_directions_screen.dart';
+import 'package:smart_parking_app/config/app_config.dart';
+import 'package:smart_parking_app/config/routes.dart';
+import 'package:intl/intl.dart';
+
 class ParkingListScreen extends StatefulWidget {
   const ParkingListScreen({super.key});
 
@@ -20,12 +28,14 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAllParkingSpots();
+    _loadData();
   }
 
-  Future<void> _loadAllParkingSpots() async {
+  Future<void> _loadData() async {
     final locationProvider = Provider.of<LocationProvider>(context, listen: false);
     final parkingProvider = Provider.of<ParkingProvider>(context, listen: false);
+    final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     
     setState(() {
       _isLoading = true;
@@ -42,11 +52,16 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
 
       // Load all parking spots from Firebase
       await parkingProvider.loadAllParkingSpots();
+
+      // Load active booking if user is logged in
+      if (authProvider.currentUser != null) {
+        await bookingProvider.loadActiveBookings(authProvider.currentUser!.id);
+      }
     } catch (e) {
-      debugPrint('Error loading parking spots: $e');
+      debugPrint('Error loading data: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading parking spots: $e')),
+          SnackBar(content: Text('Error loading data: $e')),
         );
       }
     } finally {
@@ -58,12 +73,160 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
 
   Future<void> _searchParkingSpots(String query) async {
     if (query.isEmpty) {
-      await _loadAllParkingSpots();
+      await _loadData();
       return;
     }
 
     final parkingProvider = Provider.of<ParkingProvider>(context, listen: false);
     await parkingProvider.searchParkingSpots(query);
+  }
+
+  Widget _buildActiveBookingCard(Booking booking) {
+    final durationMinutes = booking.endTime.difference(DateTime.now()).inMinutes;
+    final hours = durationMinutes ~/ 60;
+    final minutes = durationMinutes % 60;
+    
+    final timeRemaining = hours > 0 
+        ? '${hours}h ${minutes > 0 ? '${minutes}m' : ''} remaining' 
+        : minutes > 0 
+            ? '${minutes}m remaining' 
+            : 'Expires soon';
+    
+    // Create parking spot object for directions
+    final parkingSpot = ParkingSpot(
+      id: booking.parkingSpotId,
+      name: booking.parkingSpotName,
+      description: 'Booked parking spot',
+      address: '', // Not available from booking
+      latitude: booking.latitude,
+      longitude: booking.longitude,
+      totalSpots: 0,
+      availableSpots: 0,
+      pricePerHour: booking.totalPrice / (booking.endTime.difference(booking.startTime).inHours == 0 ? 1 : booking.endTime.difference(booking.startTime).inHours),
+      amenities: [],
+      operatingHours: {},
+      vehicleTypes: ['car'],
+      ownerId: '',
+      geoPoint: null,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      isVerified: true,
+    );
+    
+    return Card(
+      margin: EdgeInsets.only(bottom: 24),
+      elevation: 4,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.green.withOpacity(0.5), width: 1.5),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 8),
+                Text(
+                  'ACTIVE BOOKING',
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ],
+            ),
+            Divider(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    booking.parkingSpotName,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
+                SizedBox(width: 4),
+                Text(
+                  timeRemaining,
+                  style: TextStyle(
+                    color: durationMinutes < 30 ? Colors.red : Colors.grey[600],
+                    fontWeight: durationMinutes < 30 ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
+                SizedBox(width: 4),
+                Text(
+                  '${DateFormat('h:mm a').format(booking.startTime)} - ${DateFormat('h:mm a').format(booking.endTime)}',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ParkingDirectionsScreen(
+                            parkingSpot: parkingSpot,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: Icon(Icons.directions),
+                    label: Text('DIRECTIONS'),
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pushNamed(context, AppRoutes.bookingHistory);
+                    },
+                    icon: Icon(Icons.visibility),
+                    label: Text('DETAILS'),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showParkingSpotDetails(ParkingSpot spot) {
@@ -128,7 +291,7 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
         actions: [
           IconButton(
             icon: Icon(Icons.refresh),
-            onPressed: _loadAllParkingSpots,
+            onPressed: _loadData,
           ),
         ],
       ),
@@ -150,7 +313,7 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                         icon: Icon(Icons.clear, color: Colors.white),
                         onPressed: () {
                           _searchController.clear();
-                          _loadAllParkingSpots();
+                          _loadData();
                         },
                       )
                     : null,
@@ -201,7 +364,7 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                               ),
                               SizedBox(height: 16),
                               ElevatedButton(
-                                onPressed: _loadAllParkingSpots,
+                                onPressed: _loadData,
                                 child: Text('Retry'),
                               ),
                             ],
@@ -240,12 +403,40 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                       }
 
                       return RefreshIndicator(
-                        onRefresh: _loadAllParkingSpots,
+                        onRefresh: _loadData,
                         child: ListView.builder(
                           padding: EdgeInsets.all(16),
-                          itemCount: parkingSpots.length,
+                          itemCount: parkingSpots.length + 1, // +1 for possible active booking header
                           itemBuilder: (context, index) {
-                            final spot = parkingSpots[index];
+                            // Header Section: Active Booking
+                            if (index == 0) {
+                              return Consumer<BookingProvider>(
+                                builder: (context, bookingProvider, _) {
+                                  if (bookingProvider.activeBookings.isNotEmpty) {
+                                    // Show the first active booking
+                                    return Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _buildActiveBookingCard(bookingProvider.activeBookings.first),
+                                        Text(
+                                          'All Parking Slots',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.grey[800],
+                                          ),
+                                        ),
+                                        SizedBox(height: 12),
+                                      ],
+                                    );
+                                  }
+                                  return SizedBox.shrink();
+                                },
+                              );
+                            }
+                            
+                            // Parking Spots List
+                            final spot = parkingSpots[index - 1];
                             return _buildParkingSpotCard(spot);
                           },
                         ),

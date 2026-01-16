@@ -35,6 +35,19 @@ class AdminService {
     }
   }
 
+  // Get a single user by ID
+  Future<User> getUserById(String userId) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (!doc.exists) {
+        throw Exception('User not found');
+      }
+      return User.fromFirestore(doc);
+    } catch (e) {
+      throw Exception('Failed to get user: $e');
+    }
+  }
+
   // Get user statistics
   Future<Map<String, int>> getUserStatistics() async {
     try {
@@ -80,6 +93,19 @@ class AdminService {
       return querySnapshot.docs.map((doc) => ParkingSpot.fromFirestore(doc)).toList();
     } catch (e) {
       throw Exception('Failed to fetch parking spots: $e');
+    }
+  }
+
+  // Get a single parking spot by ID
+  Future<ParkingSpot> getParkingSpotById(String parkingSpotId) async {
+    try {
+      final doc = await _firestore.collection('parkingSpots').doc(parkingSpotId).get();
+      if (!doc.exists) {
+        throw Exception('Parking spot not found');
+      }
+      return ParkingSpot.fromFirestore(doc);
+    } catch (e) {
+      throw Exception('Failed to get parking spot: $e');
     }
   }
 
@@ -164,6 +190,54 @@ class AdminService {
       return querySnapshot.docs.map((doc) => Booking.fromFirestore(doc)).toList();
     } catch (e) {
       throw Exception('Failed to fetch bookings: $e');
+    }
+  }
+
+  // Get a single booking by ID
+  Future<Booking> getBookingById(String bookingId) async {
+    try {
+      final doc = await _firestore.collection('bookings').doc(bookingId).get();
+      if (!doc.exists) {
+        throw Exception('Booking not found');
+      }
+      return Booking.fromFirestore(doc);
+    } catch (e) {
+      throw Exception('Failed to get booking: $e');
+    }
+  }
+
+  // Process a booking (check-in/check-out)
+  Future<String> processBooking(String bookingId) async {
+    try {
+      final booking = await getBookingById(bookingId);
+      final now = DateTime.now();
+
+      if (booking.status == BookingStatus.confirmed) {
+        // Check-in
+        await updateBookingStatus(bookingId, BookingStatus.active);
+        await _firestore.collection('bookings').doc(bookingId).update({'checkedInAt': Timestamp.fromDate(now)});
+        return 'Checked in successfully!';
+      } else if (booking.status == BookingStatus.active) {
+        // Check-out
+        await updateBookingStatus(bookingId, BookingStatus.completed);
+        await _firestore.collection('bookings').doc(bookingId).update({'checkedOutAt': Timestamp.fromDate(now)});
+
+        // Increment available spots
+        final parkingSpotRef = _firestore.collection('parkingSpots').doc(booking.parkingSpotId);
+        await _firestore.runTransaction((transaction) async {
+          final parkingSpotDoc = await transaction.get(parkingSpotRef);
+          if (parkingSpotDoc.exists) {
+            final currentSpots = parkingSpotDoc.data()!['availableSpots'] ?? 0;
+            transaction.update(parkingSpotRef, {'availableSpots': currentSpots + 1});
+          }
+        });
+
+        return 'Checked out successfully!';
+      } else {
+        return 'Invalid booking status: ${booking.status.name}';
+      }
+    } catch (e) {
+      return 'Error processing booking: $e';
     }
   }
 
@@ -334,6 +408,18 @@ class AdminService {
       return users.values.toList();
     } catch (e) {
       throw Exception('Failed to search users: $e');
+    }
+  }
+
+  // Update user role
+  Future<void> updateUserRole(String userId, UserRole newRole) async {
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'role': newRole.name,
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+    } catch (e) {
+      throw Exception('Failed to update user role: $e');
     }
   }
 }

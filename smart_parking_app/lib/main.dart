@@ -1,4 +1,4 @@
-// lib/main.dart - Firebase-based Smart Parking App
+// lib/main.dart - Firebase-based QuickPark App
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'config/routes.dart';
@@ -10,9 +10,12 @@ import 'providers/location_provider.dart';
 import 'providers/parking_provider.dart';
 import 'providers/traffic_provider.dart';
 import 'providers/routing_provider.dart';
+import 'providers/vehicle_provider.dart';
+import 'providers/wallet_provider.dart';
 import 'repositories/booking_repository.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'services/notification_service.dart';
 import 'widgets/common/loading_indicator.dart';
 import 'screens/auth/complete_profile_screen.dart';
 
@@ -21,6 +24,9 @@ void main() async {
   
   // Initialize Firebase services
   await DatabaseService.init();
+  
+  // Initialize Notification Service
+  await NotificationService().init();
   
   runApp(MyApp());
 }
@@ -36,6 +42,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => TrafficProvider()),
         ChangeNotifierProvider(create: (_) => RoutingProvider()),
         ChangeNotifierProvider(create: (_) => ParkingProvider()),
+        ChangeNotifierProvider(create: (_) => VehicleProvider()),
+        ChangeNotifierProvider(create: (_) => WalletProvider()),
         
         // Initialize repositories
         Provider(create: (_) => BookingRepository()),
@@ -109,7 +117,7 @@ class _MyAppContentState extends State<MyAppContent> {
     if (_initializing) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'Smart Parking',
+        title: 'QuickPark',
         theme: AppTheme.lightTheme,
         home: Scaffold(
           body: Center(
@@ -118,7 +126,7 @@ class _MyAppContentState extends State<MyAppContent> {
               children: [
                 LoadingIndicator(),
                 SizedBox(height: 16),
-                Text('Loading Smart Parking...'),
+                Text('Loading QuickPark...'),
               ],
             ),
           ),
@@ -130,7 +138,7 @@ class _MyAppContentState extends State<MyAppContent> {
     if (_error != null) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'Smart Parking',
+        title: 'QuickPark',
         theme: AppTheme.lightTheme,
         home: Scaffold(
           body: Center(
@@ -159,7 +167,7 @@ class _MyAppContentState extends State<MyAppContent> {
       builder: (context, authProvider, _) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'Smart Parking',
+          title: 'QuickPark',
           theme: AppTheme.lightTheme,
           routes: AppRoutes.routes,
           home: _getHomeScreen(authProvider),

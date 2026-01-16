@@ -8,6 +8,8 @@ class User {
   final String email;
   final String? phoneNumber;
   final String displayName;
+  final String? city;
+  final String? emergencyContact;
   final String? photoURL;
   final UserRole role;
   final List<String> vehicleIds;
@@ -24,6 +26,8 @@ class User {
     required this.email,
     this.phoneNumber,
     required this.displayName,
+    this.city,
+    this.emergencyContact,
     this.photoURL,
     this.role = UserRole.user,
     this.vehicleIds = const [],
@@ -45,6 +49,8 @@ class User {
       email: data['email'] ?? '',
       phoneNumber: data['phoneNumber'],
       displayName: data['displayName'] ?? '',
+      city: data['city'],
+      emergencyContact: data['emergencyContact'],
       photoURL: data['photoURL'],
       role: _parseRole(data['role']),
       vehicleIds: _parseStringList(data['vehicleIds']),
@@ -65,6 +71,8 @@ class User {
       email: data['email'] ?? '',
       phoneNumber: data['phoneNumber'],
       displayName: data['displayName'] ?? '',
+      city: data['city'],
+      emergencyContact: data['emergencyContact'],
       photoURL: data['photoURL'],
       role: _parseRole(data['role']),
       vehicleIds: _parseStringList(data['vehicleIds']),
@@ -85,6 +93,8 @@ class User {
       'email': email,
       'phoneNumber': phoneNumber,
       'displayName': displayName,
+      'city': city,
+      'emergencyContact': emergencyContact,
       'photoURL': photoURL,
       'role': role.name,
       'vehicleIds': vehicleIds,
@@ -149,6 +159,8 @@ class User {
     String? email,
     String? phoneNumber,
     String? displayName,
+    String? city,
+    String? emergencyContact,
     String? photoURL,
     UserRole? role,
     List<String>? vehicleIds,
@@ -164,6 +176,8 @@ class User {
       email: email ?? this.email,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       displayName: displayName ?? this.displayName,
+      city: city ?? this.city,
+      emergencyContact: emergencyContact ?? this.emergencyContact,
       photoURL: photoURL ?? this.photoURL,
       role: role ?? this.role,
       vehicleIds: vehicleIds ?? this.vehicleIds,

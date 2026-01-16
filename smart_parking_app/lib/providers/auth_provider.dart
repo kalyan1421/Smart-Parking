@@ -2,7 +2,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../core/database/database_service.dart';
 import '../models/user.dart';
@@ -77,9 +76,6 @@ class AuthProvider with ChangeNotifier {
         _user = User.fromFirestore(userDoc);
         _setStatus(AuthStatus.authenticated);
         
-        // Cache user ID
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('user_id', uid);
         print('DEBUG: User profile loaded successfully');
         print('🧩 Phase1Audit: User profile loaded uid=$uid');
       } else {
@@ -309,6 +305,8 @@ class AuthProvider with ChangeNotifier {
   Future<bool> completeProfile({
     required String name,
     required String phoneNumber,
+    String? city,
+    String? emergencyContact,
   }) async {
     if (_user == null) return false;
 
@@ -319,6 +317,8 @@ class AuthProvider with ChangeNotifier {
       final updatedUser = _user!.copyWith(
         displayName: name,
         phoneNumber: phoneNumber,
+        city: city,
+        emergencyContact: emergencyContact,
         // updatedAt: DateTime.now(),
       );
 
@@ -339,6 +339,8 @@ class AuthProvider with ChangeNotifier {
   Future<bool> updateProfile({
     String? name,
     String? phoneNumber,
+    String? city,
+    String? emergencyContact,
     UserRole? role,
     Map<String, dynamic>? preferences,
     Map<String, double>? location,
@@ -351,6 +353,8 @@ class AuthProvider with ChangeNotifier {
       final updatedUser = _user!.copyWith(
         displayName: name,
         phoneNumber: phoneNumber,
+        city: city,
+        emergencyContact: emergencyContact,
         role: role,
         preferences: preferences,
         location: location,
@@ -408,10 +412,6 @@ class AuthProvider with ChangeNotifier {
         _googleSignIn.signOut(), // Sign out from Google
       ]);
       
-      // Clear local data
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('user_id');
-      
       _user = null;
       _verificationId = null;
       _setStatus(AuthStatus.unauthenticated);
@@ -435,10 +435,6 @@ class AuthProvider with ChangeNotifier {
       
       // Delete Firebase Auth account
       await DatabaseService.auth.currentUser?.delete();
-      
-      // Clear local data
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('user_id');
       
       _user = null;
       _setStatus(AuthStatus.unauthenticated);
