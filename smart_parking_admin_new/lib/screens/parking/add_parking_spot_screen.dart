@@ -488,8 +488,8 @@ class _AddParkingSpotScreenState extends State<AddParkingSpotScreen> {
                       Expanded(
                         child: _buildTextField(
                           controller: _pricePerHourController,
-                          label: 'Price/Hour (\$) *',
-                          hint: 'e.g., 5.00',
+                          label: 'Price/Hour (₹) *',
+                          hint: 'e.g., 100',
                           icon: Icons.currency_rupee,
                           keyboardType: TextInputType.number,
                           validator: (value) {

@@ -405,6 +405,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Navigator.pushNamed(context, AppRoutes.manageVehicles);
                     },
                   ),
+                  // Partner request option
+                  if (authProvider.currentUser?.isPartnerApproved != true)
+                    _buildSettingItem(
+                      Icons.business,
+                      'Become a QuickPark Partner',
+                      () {
+                        Navigator.pushNamed(context, AppRoutes.partnerRequest);
+                      },
+                      trailingWidget: authProvider.currentUser?.partnerRequestStatus == 'pending'
+                          ? Container(
+                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.orange,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                'Pending',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            )
+                          : null,
+                    ),
                   _buildSettingItem(
                     Icons.notifications,
                     'Notifications',

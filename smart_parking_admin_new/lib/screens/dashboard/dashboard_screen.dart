@@ -133,46 +133,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Consumer<AuthProvider>(
                         builder: (context, authProvider, child) {
                           return Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 30,
-                                    backgroundImage: authProvider.currentUser?.photoURL != null
-                                        ? NetworkImage(authProvider.currentUser!.photoURL!)
-                                        : null,
-                                    child: authProvider.currentUser?.photoURL == null
-                                        ? Text(
-                                            authProvider.currentUser?.displayName.isNotEmpty == true
-                                                ? authProvider.currentUser!.displayName[0].toUpperCase()
-                                                : 'A',
-                                            style: const TextStyle(fontSize: 24),
-                                          )
-                                        : null,
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Welcome back, ${authProvider.currentUser?.displayName ?? 'Admin'}!',
-                                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Here\'s what\'s happening with your parking system today.',
-                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                      ],
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 4,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppTheme.primaryColor.withOpacity(0.8),
+                                    AppTheme.primaryColor,
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 30,
+                                      backgroundImage: authProvider.currentUser?.photoURL != null
+                                          ? NetworkImage(authProvider.currentUser!.photoURL!)
+                                          : null,
+                                      child: authProvider.currentUser?.photoURL == null
+                                          ? Text(
+                                              authProvider.currentUser?.displayName.isNotEmpty == true
+                                                  ? authProvider.currentUser!.displayName[0].toUpperCase()
+                                                  : 'A',
+                                              style: const TextStyle(fontSize: 24, color: Colors.white),
+                                            )
+                                          : null,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Welcome back, ${authProvider.currentUser?.displayName ?? 'Admin'}!',
+                                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Here\'s what\'s happening with your parking system today.',
+                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                  color: Colors.white.withOpacity(0.9),
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           );
@@ -193,9 +211,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               child: StatCard(
                                 title: 'Total Users',
                                 value: adminProvider.adminStats!.totalUsers.toString(),
-                                icon: Icons.people,
+                                icon: Icons.group_add,
                                 color: AppTheme.primaryColor,
-                                trend: '+12%',
+                                trend: '+5% vs last week',
                                 onTap: () => Navigator.pushNamed(context, AppRoutes.userManagement),
                               ),
                             ),
@@ -206,7 +224,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 value: adminProvider.adminStats!.totalParkingSpots.toString(),
                                 icon: Icons.local_parking,
                                 color: AppTheme.successColor,
-                                trend: '+5%',
+                                trend: '+2% vs last week',
                                 onTap: () => Navigator.pushNamed(context, AppRoutes.parkingManagement),
                               ),
                             ),
@@ -217,7 +235,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 value: adminProvider.adminStats!.totalBookings.toString(),
                                 icon: Icons.book_online,
                                 color: AppTheme.warningColor,
-                                trend: '+23%',
+                                trend: '+10% vs last week',
                                 onTap: () => Navigator.pushNamed(context, AppRoutes.bookingManagement),
                               ),
                             ),
@@ -225,10 +243,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               rowFlex: 1,
                               child: StatCard(
                                 title: 'Total Revenue',
-                                value: '\$${adminProvider.adminStats!.totalRevenue.toStringAsFixed(2)}',
-                                icon: Icons.attach_money,
+                                value: '₹${adminProvider.adminStats!.totalRevenue.toStringAsFixed(2)}',
+                                icon: Icons.monetization_on,
                                 color: AppTheme.accentColor,
-                                trend: '+18%',
+                                trend: '+8% vs last week',
                               ),
                             ),
                           ],
@@ -251,7 +269,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Booking Status Distribution',
+                                        'Weekly Revenue',
                                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -259,13 +277,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       const SizedBox(height: 16),
                                       SizedBox(
                                         height: 200,
-                                        child: PieChart(
-                                          PieChartData(
-                                            sections: _buildPieChartSections(
-                                              adminProvider.adminStats!.bookingsByStatus,
-                                            ),
-                                            centerSpaceRadius: 40,
-                                            sectionsSpace: 2,
+                                        child: LineChart(
+                                          LineChartData(
+                                            gridData: FlGridData(show: false),
+                                            titlesData: FlTitlesData(show: false),
+                                            borderData: FlBorderData(show: false),
+                                            lineBarsData: [
+                                              LineChartBarData(
+                                                spots: [
+                                                  FlSpot(0, 3),
+                                                  FlSpot(1, 1),
+                                                  FlSpot(2, 4),
+                                                  FlSpot(3, 2),
+                                                  FlSpot(4, 5),
+                                                  FlSpot(5, 3),
+                                                  FlSpot(6, 4),
+                                                ],
+                                                isCurved: true,
+                                                color: AppTheme.primaryColor,
+                                                barWidth: 4,
+                                                isStrokeCapRound: true,
+                                                dotData: FlDotData(show: false),
+                                                belowBarData: BarAreaData(
+                                                  show: true,
+                                                  color: AppTheme.primaryColor.withOpacity(0.3),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ),
@@ -283,34 +321,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Quick Stats',
+                                        'Booking Status',
                                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                       const SizedBox(height: 16),
-                                      _buildQuickStat(
-                                        'Occupancy Rate',
-                                        '${adminProvider.adminStats!.occupancyRate.toStringAsFixed(1)}%',
-                                        Icons.local_parking,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      _buildQuickStat(
-                                        'Completion Rate',
-                                        '${adminProvider.adminStats!.completionRate.toStringAsFixed(1)}%',
-                                        Icons.check_circle,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      _buildQuickStat(
-                                        'Average Rating',
-                                        adminProvider.adminStats!.averageRating.toStringAsFixed(1),
-                                        Icons.star,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      _buildQuickStat(
-                                        'Active Bookings',
-                                        adminProvider.adminStats!.activeBookings.toString(),
-                                        Icons.schedule,
+                                      SizedBox(
+                                        height: 200,
+                                        child: PieChart(
+                                          PieChartData(
+                                            sections: _buildPieChartSections(
+                                              adminProvider.adminStats!.bookingsByStatus,
+                                            ),
+                                            centerSpaceRadius: 40,
+                                            sectionsSpace: 2,
+                                          ),
+                                        ),
                                       ),
                                     ],
                                   ),

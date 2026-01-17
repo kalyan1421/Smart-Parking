@@ -282,7 +282,7 @@ class _ParkingManagementScreenState extends State<ParkingManagementScreen> {
                 const SizedBox(width: 12),
                 _buildStatChip(
                   Icons.attach_money,
-                  '\$${parkingSpot.pricePerHour.toStringAsFixed(2)}/hr',
+                  '₹${parkingSpot.pricePerHour.toStringAsFixed(2)}/hr',
                   'Price',
                 ),
                 const SizedBox(width: 12),

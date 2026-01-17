@@ -183,31 +183,30 @@ class _AddParkingSpotDialogState extends State<AddParkingSpotDialog> {
                 ],
               ),
               const SizedBox(height: 16),
-              if (!_isFreeParking) ...[
-                TextFormField(
-                  controller: _pricePerHourController,
-                  decoration: const InputDecoration(
-                    labelText: 'Price/Hour',
-                    prefixText: '\$',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  validator: (value) {
-                    if (!_isFreeParking) {
-                      if (value == null || value.isEmpty) {
-                        return 'Required';
-                      }
-                      double? price = double.tryParse(value);
-                      if (price == null || price <= 0) {
-                        return 'Invalid';
-                      }
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-              ],
-              // Admin-only verification checkbox
+                        if (!_isFreeParking) ...[
+                          TextFormField(
+                            controller: _pricePerHourController,
+                            decoration: const InputDecoration(
+                              labelText: 'Price/Hour',
+                              prefixText: '₹',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            validator: (value) {
+                              if (!_isFreeParking) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Required';
+                                }
+                                double? price = double.tryParse(value);
+                                if (price == null || price <= 0) {
+                                  return 'Invalid';
+                                }
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                        ],              // Admin-only verification checkbox
               Consumer<AuthProvider>(
                 builder: (context, authProvider, child) {
                   if (authProvider.isAdmin) {

@@ -167,6 +167,7 @@ class ParkingSpot {
 
   // Copy with method for updates
   ParkingSpot copyWith({
+    String? id,
     String? name,
     String? description,
     double? latitude,
@@ -190,7 +191,7 @@ class ParkingSpot {
     Map<String, dynamic>? accessibility,
   }) {
     return ParkingSpot(
-      id: id,
+      id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
       latitude: latitude ?? this.latitude,
@@ -223,6 +224,6 @@ class ParkingSpot {
 
   @override
   String toString() {
-    return 'ParkingSpot{id: $id, name: $name, availableSpots: $availableSpots/$totalSpots, price: \$${pricePerHour.toStringAsFixed(2)}/hr}';
+    return 'ParkingSpot{id: $id, name: $name, availableSpots: $availableSpots/$totalSpots, price: ₹${pricePerHour.toStringAsFixed(2)}/hr}';
   }
 }

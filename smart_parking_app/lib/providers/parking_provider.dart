@@ -187,15 +187,42 @@ class ParkingProvider extends ChangeNotifier {
     }
   }
   
-  // NOTE: Parking spot creation is now handled by admin app only
-  // Users can only view and book existing parking spots
+  // NOTE: Parking spot creation is handled by approved QuickPark partners only
+  // Regular users can only view and book existing parking spots
   
   // Add a new parking spot
   Future<bool> addParkingSpot(ParkingSpot spot) async {
     _setLoading(true);
     try {
       final docRef = DatabaseService.collection('parkingSpots').doc();
-      final spotWithId = spot.copyWith(id: docRef.id);
+      
+      // Create a new ParkingSpot with the Firestore document ID
+      final spotWithId = ParkingSpot(
+        id: docRef.id,
+        name: spot.name,
+        description: spot.description,
+        latitude: spot.latitude,
+        longitude: spot.longitude,
+        geoPoint: spot.geoPoint,
+        totalSpots: spot.totalSpots,
+        availableSpots: spot.availableSpots,
+        pricePerHour: spot.pricePerHour,
+        amenities: spot.amenities,
+        vehicleTypes: spot.vehicleTypes,
+        ownerId: spot.ownerId,
+        status: spot.status,
+        operatingHours: spot.operatingHours,
+        images: spot.images,
+        rating: spot.rating,
+        reviewCount: spot.reviewCount,
+        isVerified: spot.isVerified,
+        createdAt: spot.createdAt,
+        updatedAt: spot.updatedAt,
+        weatherData: spot.weatherData,
+        address: spot.address,
+        contactPhone: spot.contactPhone,
+        accessibility: spot.accessibility,
+      );
       
       await docRef.set(spotWithId.toMap());
       
@@ -407,8 +434,8 @@ class ParkingProvider extends ChangeNotifier {
     }
   }
   
-  // NOTE: Parking spot updates and deletions are handled by admin app only
-  // Users can only view parking spots and update availability through bookings
+  // NOTE: Parking spot updates and deletions are handled by approved QuickPark partners only
+  // Regular users can only view parking spots and update availability through bookings
   
   // Get spots owned by user
   Future<void> loadUserOwnedSpots(String userId) async {

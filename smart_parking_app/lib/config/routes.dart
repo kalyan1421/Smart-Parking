@@ -15,39 +15,61 @@ import 'package:smart_parking_app/screens/profile/vehicles/vehicle_list_screen.d
 import 'package:smart_parking_app/screens/wallet/wallet_screen.dart';
 import 'package:smart_parking_app/screens/chat/chat_support_screen.dart';
 import 'package:smart_parking_app/screens/parking/qr_scanner_screen.dart';
-import 'package:smart_parking_app/screens/admin/admin_dashboard_screen.dart';
-import 'package:smart_parking_app/screens/admin/admin_qr_scanner_screen.dart';
-import 'package:smart_parking_app/screens/admin/admin_bookings_screen.dart';
-import 'package:smart_parking_app/screens/admin/admin_users_screen.dart';
-import 'package:smart_parking_app/screens/admin/manage_parking_spots_screen.dart';
-import 'package:smart_parking_app/screens/admin/add_edit_parking_spot_screen.dart';
-import 'package:smart_parking_app/models/parking_spot.dart';
+import 'package:smart_parking_app/screens/profile/partner_request_screen.dart';
 
 class AppRoutes {
-  // ... existing routes
+  // Auth Routes
+  static const String login = '/login';
+  static const String register = '/register';
+  static const String passwordReset = '/password-reset';
+  static const String completeProfile = '/complete-profile';
   
-  // Admin Routes
-  static const String adminDashboard = '/admin-dashboard';
-  static const String adminScanQr = '/admin-scan-qr';
-  static const String adminBookings = '/admin-bookings';
-  static const String adminUsers = '/admin-users';
-  static const String adminMap = '/admin-map';
-  static const String adminManageSpots = '/admin-manage-spots';
-  static const String adminAddEditSpot = '/admin-add-edit-spot';
+  // Home Routes
+  static const String home = '/home';
+  
+  // Map Routes
+  static const String map = '/map';
+  
+  // Parking Routes
+  static const String parkingmap = '/parking-map';
+  static const String parkingList = '/parking-list';
+  static const String parkingDetail = '/parking-detail';
+  static const String scanQr = '/scan-qr';
+  
+  // Profile Routes
+  static const String bookingHistory = '/booking-history';
+  static const String manageVehicles = '/manage-vehicles';
+  static const String partnerRequest = '/partner-request';
+  
+  // Other Routes
+  static const String wallet = '/wallet';
+  static const String chat = '/chat';
   
   static Map<String, WidgetBuilder> get routes => {
-    // ... existing routes
+    // Auth Routes
+    login: (context) => LoginScreen(),
+    register: (context) => RegisterScreen(),
+    passwordReset: (context) => PasswordResetScreen(),
+    completeProfile: (context) => CompleteProfileScreen(),
     
-    // Admin Routes
-    adminDashboard: (context) => AdminDashboardScreen(),
-    adminScanQr: (context) => AdminQRScannerScreen(),
-    adminBookings: (context) => AdminBookingsScreen(),
-    adminUsers: (context) => AdminUsersScreen(),
-    adminMap: (context) => AdminMapScreen(),
-    adminManageSpots: (context) => ManageParkingSpotsScreen(),
-    adminAddEditSpot: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments;
-      return AddEditParkingSpotScreen(parkingSpot: args as ParkingSpot?);
-    },
+    // Home Routes
+    home: (context) => HomeScreen(),
+    
+    // Map Routes
+    map: (context) => MapScreen(),
+    
+    // Parking Routes
+    parkingmap: (context) => ParkingMapScreen(),
+    parkingList: (context) => ParkingListScreen(),
+    scanQr: (context) => QRScannerScreen(),
+    
+    // Profile Routes
+    bookingHistory: (context) => BookingHistoryScreen(),
+    manageVehicles: (context) => VehicleListScreen(),
+    partnerRequest: (context) => PartnerRequestScreen(),
+    
+    // Other Routes
+    wallet: (context) => WalletScreen(),
+    chat: (context) => ChatSupportScreen(),
   };
 }

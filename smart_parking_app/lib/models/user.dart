@@ -1,7 +1,7 @@
 // lib/models/user.dart
    import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum UserRole { user, parkingOperator, admin }
+enum UserRole { user, parkingOperator }
 
 class User {
   final String id;
@@ -17,6 +17,8 @@ class User {
   final Map<String, dynamic> preferences;
   final bool isEmailVerified;
   final bool isPhoneVerified;
+  final bool isPartnerApproved; // Whether user is approved as QuickPark partner
+  final String? partnerRequestStatus; // 'pending', 'approved', 'rejected', null
   // final DateTime createdAt;
   // final DateTime updatedAt;
   final Map<String, double>? location; // {lat: 0.0, lng: 0.0}
@@ -35,6 +37,8 @@ class User {
     this.preferences = const {},
     this.isEmailVerified = false,
     this.isPhoneVerified = false,
+    this.isPartnerApproved = false,
+    this.partnerRequestStatus,
     // required this.createdAt,
     // required this.updatedAt,
     this.location,
@@ -80,6 +84,8 @@ class User {
       preferences: _parseStringDynamicMap(data['preferences']),
       isEmailVerified: data['isEmailVerified'] ?? false,
       isPhoneVerified: data['isPhoneVerified'] ?? false,
+      isPartnerApproved: data['isPartnerApproved'] ?? false,
+      partnerRequestStatus: data['partnerRequestStatus'],
       // createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       // updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       location: _parseLocationMap(data['location']),
@@ -102,6 +108,8 @@ class User {
       'preferences': preferences,
       'isEmailVerified': isEmailVerified,
       'isPhoneVerified': isPhoneVerified,
+      'isPartnerApproved': isPartnerApproved,
+      'partnerRequestStatus': partnerRequestStatus,
       'createdAt': Timestamp.fromDate(now),
       'updatedAt': Timestamp.fromDate(now),
       'location': location,
@@ -113,8 +121,6 @@ class User {
     switch (roleString) {
       case 'parkingOperator':
         return UserRole.parkingOperator;
-      case 'admin':
-        return UserRole.admin;
       default:
         return UserRole.user;
     }
@@ -168,6 +174,8 @@ class User {
     Map<String, dynamic>? preferences,
     bool? isEmailVerified,
     bool? isPhoneVerified,
+    bool? isPartnerApproved,
+    String? partnerRequestStatus,
     DateTime? updatedAt,
     Map<String, double>? location,
   }) {
@@ -185,6 +193,8 @@ class User {
       preferences: preferences ?? this.preferences,
       isEmailVerified: isEmailVerified ?? this.isEmailVerified,
       isPhoneVerified: isPhoneVerified ?? this.isPhoneVerified,
+      isPartnerApproved: isPartnerApproved ?? this.isPartnerApproved,
+      partnerRequestStatus: partnerRequestStatus ?? this.partnerRequestStatus,
       // createdAt: createdAt,
       // updatedAt: updatedAt ?? DateTime.now(),
       location: location ?? this.location,
@@ -194,10 +204,8 @@ class User {
   // Check if user has specific role
   bool hasRole(UserRole requiredRole) {
     switch (requiredRole) {
-      case UserRole.admin:
-        return role == UserRole.admin;
       case UserRole.parkingOperator:
-        return role == UserRole.parkingOperator || role == UserRole.admin;
+        return role == UserRole.parkingOperator && isPartnerApproved;
       case UserRole.user:
         return true; // All users have user role
     }

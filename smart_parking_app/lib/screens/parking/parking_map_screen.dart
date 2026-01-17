@@ -10,6 +10,9 @@ import 'package:smart_parking_app/models/parking_spot.dart';
 import 'package:smart_parking_app/screens/parking/parking_spot_bottom_sheet.dart';
 import 'package:smart_parking_app/widgets/common/loading_indicator.dart';
 import 'package:smart_parking_app/screens/parking/filter_bar.dart';
+import 'package:smart_parking_app/screens/parking/add_parking_spot_dialog.dart';
+import 'package:smart_parking_app/providers/auth_provider.dart';
+import 'package:smart_parking_app/services/partner_request_service.dart';
 
 class ParkingMapScreen extends StatefulWidget {
   const ParkingMapScreen({super.key});
@@ -54,20 +57,26 @@ class _ParkingMapScreenState extends State<ParkingMapScreen> {
       radius: AppConfig.defaultSearchRadius
     );
     
-    // Move map to user location
-    if (_mapController != null) {
-      _mapController!.animateCamera(CameraUpdate.newLatLngZoom(
-        LatLng(userLatitude, userLongitude), 14.0
-      ));
+    // Update markers after loading spots
+    if (mounted) {
+      _updateMarkers();
+      
+      // Move map to user location
+      if (_mapController != null) {
+        _mapController!.animateCamera(CameraUpdate.newLatLngZoom(
+          LatLng(userLatitude, userLongitude), 14.0
+        ));
+      }
     }
-    
-    // Update UI
-    _updateMarkers();
   }
   
   void _updateMarkers() {
+    if (!mounted) return;
+    
     final parkingProvider = Provider.of<ParkingProvider>(context, listen: false);
     final spots = parkingProvider.nearbyParkingSpots;
+    
+    print('🧩 Updating markers: ${spots.length} parking spots found');
     
     Set<Marker> markers = {};
     
@@ -95,6 +104,8 @@ class _ParkingMapScreenState extends State<ParkingMapScreen> {
         icon: BitmapDescriptor.defaultMarkerWithHue(hue),
         onTap: () => _onMarkerTapped(spot),
       ));
+      
+      print('🧩 Added marker for: ${spot.name} at (${spot.latitude}, ${spot.longitude})');
     }
     
     // Create marker for user location
@@ -113,10 +124,12 @@ class _ParkingMapScreenState extends State<ParkingMapScreen> {
       ));
     }
     
-    
-    setState(() {
-      _markers = markers;
-    });
+    if (mounted) {
+      setState(() {
+        _markers = markers;
+      });
+      print('🧩 Markers updated: ${_markers.length} total markers');
+    }
   }
   
   void _onMarkerTapped(ParkingSpot spot) {
@@ -134,13 +147,39 @@ class _ParkingMapScreenState extends State<ParkingMapScreen> {
     );
   }
   
-  // Parking spot addition is now handled by admin app only
+  // Parking spot addition is handled by approved QuickPark partners only
   
+  Future<void> _showAddParkingSpotDialog() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    // Check if user is an approved partner
+    if (authProvider.currentUser == null || !authProvider.currentUser!.isPartnerApproved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Only approved QuickPark partners can add parking spots.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final result = await showDialog(
+      context: context,
+      builder: (context) => AddParkingSpotDialog(),
+    );
+
+    if (result == true) {
+      // Refresh parking spots after adding
+      _loadParkingSpots();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final locationProvider = Provider.of<LocationProvider>(context);
     final parkingProvider = Provider.of<ParkingProvider>(context);
     final trafficProvider = Provider.of<TrafficProvider>(context);
+    final authProvider = Provider.of<AuthProvider>(context);
     
     // Ensure traffic overlay is set up (without notifying)
     if (!trafficProvider.isOverlaySetup) {
@@ -164,10 +203,20 @@ class _ParkingMapScreenState extends State<ParkingMapScreen> {
       zoom: 13.0,
     );
     
+    // Check if user is an approved partner
+    final isPartner = authProvider.currentUser?.isPartnerApproved ?? false;
+    
     return Scaffold(
       appBar: AppBar(
         title: Text('Find Parking'),
         actions: [
+          // Add Parking Spot button (only for approved partners)
+          if (isPartner)
+            IconButton(
+              icon: Icon(Icons.add_location),
+              onPressed: _showAddParkingSpotDialog,
+              tooltip: 'Add Parking Spot',
+            ),
           // Traffic toggle button
           IconButton(
             icon: Icon(
@@ -228,35 +277,43 @@ class _ParkingMapScreenState extends State<ParkingMapScreen> {
           ParkingFilterBar(),
           
           Expanded(
-            child: Stack(
-              children: [
-                // Map
-                GoogleMap(
-                  initialCameraPosition: initialCameraPosition,
-                  myLocationEnabled: true,
-                  myLocationButtonEnabled: false,
-                  zoomControlsEnabled: false,
-                  markers: _markers,
-                  tileOverlays: tileOverlays,
-                  onMapCreated: (controller) {
-                    setState(() {
-                      _mapController = controller;
-                    });
-                    
-                    // Initial load if we have location
-                    if (locationProvider.hasLocation) {
-                      _updateMarkers();
-                      
-                      controller.animateCamera(CameraUpdate.newLatLngZoom(
-                        LatLng(
-                          locationProvider.currentLocation!.latitude,
-                          locationProvider.currentLocation!.longitude
-                        ), 
-                        14.0
-                      ));
-                    }
-                  },
-                ),
+            child: Consumer<ParkingProvider>(
+              builder: (context, parkingProvider, child) {
+                // Update markers when parking spots change
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && !parkingProvider.isLoading) {
+                    _updateMarkers();
+                  }
+                });
+                
+                return Stack(
+                  children: [
+                    // Map
+                    GoogleMap(
+                      initialCameraPosition: initialCameraPosition,
+                      myLocationEnabled: true,
+                      myLocationButtonEnabled: false,
+                      zoomControlsEnabled: false,
+                      markers: _markers,
+                      tileOverlays: tileOverlays,
+                      onMapCreated: (controller) {
+                        setState(() {
+                          _mapController = controller;
+                        });
+                        
+                        // Initial load if we have location
+                        if (locationProvider.hasLocation) {
+                          _loadParkingSpots();
+                        } else {
+                          // Wait for location then load
+                          locationProvider.getCurrentLocation().then((_) {
+                            if (mounted) {
+                              _loadParkingSpots();
+                            }
+                          });
+                        }
+                      },
+                    ),
                 
                 // Loading indicator
                 if (parkingProvider.isLoading)
@@ -330,7 +387,7 @@ class _ParkingMapScreenState extends State<ParkingMapScreen> {
                   ),
                 ),
                 
-                // Parking spot addition is handled by admin app only
+                // Parking spot addition is handled by approved QuickPark partners only
                 
                 // Parking availability legend
                 Positioned(
@@ -386,7 +443,9 @@ class _ParkingMapScreenState extends State<ParkingMapScreen> {
                       ),
                     ),
                   ),
-              ],
+                  ],
+                );
+              },
             ),
           ),
         ],

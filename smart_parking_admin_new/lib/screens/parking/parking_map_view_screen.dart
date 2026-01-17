@@ -51,12 +51,11 @@ class _ParkingMapViewScreenState extends State<ParkingMapViewScreen> {
           markerId: MarkerId(spot.id),
           position: LatLng(spot.latitude, spot.longitude),
           icon: _getMarkerIcon(spot.status),
-          infoWindow: InfoWindow(
-            title: spot.name,
-            snippet: '${spot.availableSpots}/${spot.totalSpots} spots • \$${spot.pricePerHour}/hr',
-            onTap: () => _selectParkingSpot(spot),
-          ),
-          onTap: () => _selectParkingSpot(spot),
+                  infoWindow: InfoWindow(
+                    title: spot.name,
+                    snippet: '${spot.availableSpots}/${spot.totalSpots} spots • ₹${spot.pricePerHour}/hr',
+                    onTap: () => _selectParkingSpot(spot),
+                  ),          onTap: () => _selectParkingSpot(spot),
         ),
       );
     }
@@ -173,12 +172,11 @@ class _ParkingMapViewScreenState extends State<ParkingMapViewScreen> {
                       color: Colors.blue,
                     ),
                     const SizedBox(width: 12),
-                    _buildStatChip(
-                      icon: Icons.attach_money,
-                      label: '\$${spot.pricePerHour}/hr',
-                      color: Colors.green,
-                    ),
-                    const SizedBox(width: 12),
+                                    _buildStatChip(
+                                      icon: Icons.attach_money,
+                                      label: '₹${spot.pricePerHour}/hr',
+                                      color: Colors.green,
+                                    ),                    const SizedBox(width: 12),
                     _buildStatChip(
                       icon: Icons.star,
                       label: spot.rating.toStringAsFixed(1),

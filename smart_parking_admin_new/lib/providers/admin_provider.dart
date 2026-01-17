@@ -149,8 +149,7 @@ class AdminProvider with ChangeNotifier {
   Future<void> addParkingSpot(ParkingSpot parkingSpot) async {
     _clearError();
     try {
-      await _adminService.addParkingSpot(parkingSpot);
-      final newSpot = parkingSpot.copyWith();
+      final newSpot = await _adminService.addParkingSpot(parkingSpot);
       _parkingSpots.insert(0, newSpot);
       notifyListeners();
     } catch (e) {

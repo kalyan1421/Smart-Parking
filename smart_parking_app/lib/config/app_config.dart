@@ -36,7 +36,6 @@ class AppConfig {
   // User Roles
   static const String roleUser = 'user';
   static const String roleParkingOperator = 'parking_operator';
-  static const String roleAdmin = 'admin';
   
   // Vehicle Types
   static const List<String> vehicleTypes = [

@@ -8,6 +8,7 @@ import 'package:smart_parking_app/config/routes.dart';
 import 'package:smart_parking_app/models/traffic_bot.dart';
 import 'package:smart_parking_app/models/route_option.dart';
 import 'package:smart_parking_app/providers/location_provider.dart';
+import 'package:smart_parking_app/providers/parking_provider.dart';
 import 'package:smart_parking_app/providers/traffic_provider.dart';
 import 'package:smart_parking_app/providers/routing_provider.dart';
 import 'package:smart_parking_app/screens/maps/route_options_sheet.dart';
@@ -140,10 +141,18 @@ class _MapScreenState extends State<MapScreen> {
     
     try {
       final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+      final parkingProvider = Provider.of<ParkingProvider>(context, listen: false);
       
       if (!locationProvider.hasLocation) {
         await locationProvider.getCurrentLocation();
       }
+      
+      // Load nearby parking spots and reflect them on the map
+      await parkingProvider.loadParkingSpotsNear(
+        locationProvider.latitude,
+        locationProvider.longitude,
+        radius: AppConstants.defaultSearchRadius,
+      );
       
       _createMarkers();
     } catch (e) {
@@ -156,6 +165,9 @@ class _MapScreenState extends State<MapScreen> {
   }
   
   void _createMarkers() {
+    final parkingProvider = Provider.of<ParkingProvider>(context, listen: false);
+    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+    
     if (_isRoutingMode && _destinationLocation != null) {
       // In routing mode, show only destination marker
       setState(() {
@@ -165,12 +177,50 @@ class _MapScreenState extends State<MapScreen> {
             position: _destinationLocation!,
             icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
           ),
+          if (locationProvider.hasLocation)
+            Marker(
+              markerId: MarkerId('origin'),
+              position: LatLng(locationProvider.latitude, locationProvider.longitude),
+              icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+              infoWindow: InfoWindow(title: 'You'),
+            ),
         };
       });
       return;
     }
     
     final Set<Marker> markers = {};
+    
+    for (final spot in parkingProvider.parkingSpots) {
+      // Color markers based on availability
+      final hue = spot.availableSpots <= 0
+          ? BitmapDescriptor.hueRed
+          : spot.availableSpots <= 2
+              ? BitmapDescriptor.hueOrange
+              : BitmapDescriptor.hueGreen;
+      
+      markers.add(Marker(
+        markerId: MarkerId(spot.id),
+        position: LatLng(spot.latitude, spot.longitude),
+        icon: BitmapDescriptor.defaultMarkerWithHue(hue),
+        infoWindow: InfoWindow(
+          title: spot.name,
+          snippet: '${spot.availableSpots}/${spot.totalSpots} available',
+        ),
+      ));
+    }
+    
+    // Mark user location for context
+    if (locationProvider.hasLocation) {
+      markers.add(
+        Marker(
+          markerId: MarkerId('user_location'),
+          position: LatLng(locationProvider.latitude, locationProvider.longitude),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          infoWindow: InfoWindow(title: 'You are here'),
+        ),
+      );
+    }
     
     setState(() {
       _markers = markers;

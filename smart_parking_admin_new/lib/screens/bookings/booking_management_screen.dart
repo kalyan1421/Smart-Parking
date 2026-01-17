@@ -65,151 +65,161 @@ class _BookingManagementScreenState extends State<BookingManagementScreen> {
           Expanded(
             child: Column(
               children: [
-                // Revenue Summary Card
-                Consumer<AdminProvider>(
-                  builder: (context, adminProvider, child) {
-                    if (adminProvider.revenueData != null) {
-                      return Container(
-                        margin: const EdgeInsets.all(16),
-                        child: Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: _buildRevenueStatTile(
-                                    'Total Revenue',
-                                    '\$${adminProvider.revenueData!.totalRevenue.toStringAsFixed(2)}',
-                                    Icons.attach_money,
-                                    AppTheme.successColor,
-                                  ),
-                                ),
-                                const VerticalDivider(),
-                                Expanded(
-                                  child: _buildRevenueStatTile(
-                                    'Total Bookings',
-                                    adminProvider.revenueData!.totalBookings.toString(),
-                                    Icons.book_online,
-                                    AppTheme.primaryColor,
-                                  ),
-                                ),
-                                const VerticalDivider(),
-                                Expanded(
-                                  child: _buildRevenueStatTile(
-                                    'Average Booking Value',
-                                    '\$${adminProvider.revenueData!.averageBookingValue.toStringAsFixed(2)}',
-                                    Icons.trending_up,
-                                    AppTheme.accentColor,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-                
-                // Filters
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: TextField(
-                                  controller: _searchController,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Search by user, parking spot, or booking ID...',
-                                    prefixIcon: Icon(Icons.search),
-                                  ),
-                                  onChanged: (value) {
-                                    // Implement search functionality
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: DropdownButton<BookingStatus?>(
-                                  isExpanded: true,
-                                  value: _statusFilter,
-                                  hint: const Text('Filter by Status'),
-                                  items: [
-                                    const DropdownMenuItem(
-                                      value: null,
-                                      child: Text('All Statuses'),
+                // Collapsible Revenue Summary and Filters
+                ExpansionTile(
+                  title: const Text(
+                    'Revenue Summary & Filters',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  initiallyExpanded: true, // Keep it expanded by default
+                  children: [
+                    // Revenue Summary Card
+                    Consumer<AdminProvider>(
+                      builder: (context, adminProvider, child) {
+                        if (adminProvider.revenueData != null) {
+                          return Container(
+                            margin: const EdgeInsets.all(16),
+                            child: Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildRevenueStatTile(
+                                        'Total Revenue',
+                                        '₹${adminProvider.revenueData!.totalRevenue.toStringAsFixed(2)}',
+                                        Icons.attach_money,
+                                        AppTheme.successColor,
+                                      ),
                                     ),
-                                    ...BookingStatus.values.map(
-                                      (status) => DropdownMenuItem(
-                                        value: status,
-                                        child: Text(status.name.toUpperCase()),
+                                    const VerticalDivider(),
+                                    Expanded(
+                                      child: _buildRevenueStatTile(
+                                        'Total Bookings',
+                                        adminProvider.revenueData!.totalBookings.toString(),
+                                        Icons.book_online,
+                                        AppTheme.primaryColor,
+                                      ),
+                                    ),
+                                    const VerticalDivider(),
+                                    Expanded(
+                                      child: _buildRevenueStatTile(
+                                        'Average Booking Value',
+                                        '₹${adminProvider.revenueData!.averageBookingValue.toStringAsFixed(2)}',
+                                        Icons.trending_up,
+                                        AppTheme.accentColor,
                                       ),
                                     ),
                                   ],
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _statusFilter = value;
-                                    });
-                                    _applyFilters();
-                                  },
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                    
+                    // Filters
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
                             children: [
-                              Expanded(
-                                child: InkWell(
-                                  onTap: () => _selectStartDate(),
-                                  child: InputDecorator(
-                                    decoration: const InputDecoration(
-                                      labelText: 'Start Date',
-                                      suffixIcon: Icon(Icons.calendar_today),
-                                    ),
-                                    child: Text(
-                                      _startDate != null
-                                          ? DateFormat('MMM dd, yyyy').format(_startDate!)
-                                          : 'Select start date',
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: InkWell(
-                                  onTap: () => _selectEndDate(),
-                                  child: InputDecorator(
-                                    decoration: const InputDecoration(
-                                      labelText: 'End Date',
-                                      suffixIcon: Icon(Icons.calendar_today),
-                                    ),
-                                    child: Text(
-                                      _endDate != null
-                                          ? DateFormat('MMM dd, yyyy').format(_endDate!)
-                                          : 'Select end date',
+                              Row(
+                                children: [
+                                  Expanded(
+                                    flex: 2,
+                                    child: TextField(
+                                      controller: _searchController,
+                                      decoration: const InputDecoration(
+                                        hintText: 'Search by user, parking spot, or booking ID...',
+                                        prefixIcon: Icon(Icons.search),
+                                      ),
+                                      onChanged: (value) {
+                                        // Implement search functionality
+                                      },
                                     ),
                                   ),
-                                ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: DropdownButton<BookingStatus?>(
+                                      isExpanded: true,
+                                      value: _statusFilter,
+                                      hint: const Text('Filter by Status'),
+                                      items: [
+                                        const DropdownMenuItem(
+                                          value: null,
+                                          child: Text('All Statuses'),
+                                        ),
+                                        ...BookingStatus.values.map(
+                                          (status) => DropdownMenuItem(
+                                            value: status,
+                                            child: Text(status.name.toUpperCase()),
+                                          ),
+                                        ),
+                                      ],
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _statusFilter = value;
+                                        });
+                                        _applyFilters();
+                                      },
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 16),
-                              ElevatedButton(
-                                onPressed: _clearFilters,
-                                child: const Text('Clear Filters'),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: InkWell(
+                                      onTap: () => _selectStartDate(),
+                                      child: InputDecorator(
+                                        decoration: const InputDecoration(
+                                          labelText: 'Start Date',
+                                          suffixIcon: Icon(Icons.calendar_today),
+                                        ),
+                                        child: Text(
+                                          _startDate != null
+                                              ? DateFormat('MMM dd, yyyy').format(_startDate!)
+                                              : 'Start',
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: InkWell(
+                                      onTap: () => _selectEndDate(),
+                                      child: InputDecorator(
+                                        decoration: const InputDecoration(
+                                          labelText: 'End Date',
+                                          suffixIcon: Icon(Icons.calendar_today),
+                                        ),
+                                        child: Text(
+                                          _endDate != null
+                                              ? DateFormat('MMM dd, yyyy').format(_endDate!)
+                                              : 'End',
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  ElevatedButton(
+                                    onPressed: _clearFilters,
+                                    child: const Text('Clear Filters'),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
                 
                 // Bookings List
@@ -317,271 +327,144 @@ class _BookingManagementScreenState extends State<BookingManagementScreen> {
   Widget _buildBookingCard(Booking booking) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Booking #${booking.id.substring(0, 8)}',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppTheme.getBookingStatusColor(booking.status.name)
-                                  .withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: AppTheme.getBookingStatusColor(booking.status.name),
-                              ),
-                            ),
-                            child: Text(
-                              booking.status.name.toUpperCase(),
-                              style: TextStyle(
-                                color: AppTheme.getBookingStatusColor(booking.status.name),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        booking.parkingSpotName,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: AppTheme.primaryColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(Icons.person, size: 16, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Text(
-                            'User ID: ${booking.userId.substring(0, 8)}...',
-                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                          ),
-                          const SizedBox(width: 16),
-                          Icon(Icons.schedule, size: 16, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Text(
-                            booking.durationText,
-                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '\$${booking.totalPrice.toStringAsFixed(2)}',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.successColor,
-                      ),
-                    ),
-                    Text(
-                      '\$${booking.pricePerHour.toStringAsFixed(2)}/hr',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            // Date and Time Info
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        onTap: () => _showBookingDetails(booking),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Start Time',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
+                    child: Text(
+                      booking.parkingSpotName,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.primaryColor,
                           ),
-                        ),
-                        Text(
-                          DateFormat('MMM dd, yyyy HH:mm').format(booking.startTime),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                   Container(
-                    width: 1,
-                    height: 30,
-                    color: Colors.grey[300],
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          'End Time',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Text(
-                          DateFormat('MMM dd, yyyy HH:mm').format(booking.endTime),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.getBookingStatusColor(booking.status.name).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                  ),
-                  Container(
-                    width: 1,
-                    height: 30,
-                    color: Colors.grey[300],
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'Created',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Text(
-                          DateFormat('MMM dd, yyyy').format(booking.createdAt),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      booking.status.name.toUpperCase(),
+                      style: TextStyle(
+                        color: AppTheme.getBookingStatusColor(booking.status.name),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Actions
-            Row(
-              children: [
-                if (booking.status == BookingStatus.pending)
-                  OutlinedButton.icon(
-                    onPressed: () => _updateBookingStatus(booking, BookingStatus.confirmed),
-                    icon: const Icon(Icons.check),
-                    label: const Text('Confirm'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.successColor,
-                      side: BorderSide(color: AppTheme.successColor),
+              const SizedBox(height: 8),
+              Text(
+                'Booking ID: ${booking.id.substring(0, 8)}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
                     ),
-                  ),
-                if (booking.status == BookingStatus.confirmed)
-                  OutlinedButton.icon(
-                    onPressed: () => _updateBookingStatus(booking, BookingStatus.active),
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Start'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.primaryColor,
-                      side: BorderSide(color: AppTheme.primaryColor),
-                    ),
-                  ),
-                if (booking.status == BookingStatus.active)
-                  OutlinedButton.icon(
-                    onPressed: () => _updateBookingStatus(booking, BookingStatus.completed),
-                    icon: const Icon(Icons.stop),
-                    label: const Text('Complete'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.accentColor,
-                      side: BorderSide(color: AppTheme.accentColor),
-                    ),
-                  ),
-                if (booking.status == BookingStatus.pending || booking.status == BookingStatus.confirmed) ...[
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: () => _updateBookingStatus(booking, BookingStatus.cancelled),
-                    icon: const Icon(Icons.cancel),
-                    label: const Text('Cancel'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.errorColor,
-                      side: BorderSide(color: AppTheme.errorColor),
-                    ),
-                  ),
+              ),
+              const Divider(height: 24),
+              Row(
+                children: [
+                  _buildInfoColumn(Icons.person, 'User ID', booking.userId.substring(0, 8)),
+                  _buildInfoColumn(Icons.directions_car, 'Vehicle ID', booking.vehicleId),
+                  _buildInfoColumn(Icons.price_change, 'Price', '₹${booking.totalPrice.toStringAsFixed(2)}'),
                 ],
-                const Spacer(),
-                PopupMenuButton<String>(
-                  onSelected: (value) => _handleBookingMenuAction(value, booking),
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'view_details',
-                      child: ListTile(
-                        leading: Icon(Icons.info),
-                        title: Text('View Details'),
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'view_user',
-                      child: ListTile(
-                        leading: Icon(Icons.person),
-                        title: Text('View User'),
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                    if (booking.qrCode != null)
-                      const PopupMenuItem(
-                        value: 'view_qr',
-                        child: ListTile(
-                          leading: Icon(Icons.qr_code),
-                          title: Text('View QR Code'),
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  _buildInfoColumn(Icons.calendar_today, 'Date', DateFormat('MMM dd, yyyy').format(booking.startTime)),
+                  _buildInfoColumn(Icons.access_time, 'Time', booking.timeText),
+                  _buildInfoColumn(Icons.timer, 'Duration', booking.durationText),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (booking.status == BookingStatus.pending || booking.status == BookingStatus.confirmed || booking.status == BookingStatus.active)
+                _buildActionButtons(booking),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildInfoColumn(IconData icon, String label, String value) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, color: AppTheme.primaryColor, size: 24),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(Booking booking) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        if (booking.status == BookingStatus.pending)
+          ElevatedButton.icon(
+            onPressed: () => _updateBookingStatus(booking, BookingStatus.confirmed),
+            icon: const Icon(Icons.check, size: 16),
+            label: const Text('Confirm'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.successColor,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        if (booking.status == BookingStatus.confirmed)
+          ElevatedButton.icon(
+            onPressed: () => _updateBookingStatus(booking, BookingStatus.active),
+            icon: const Icon(Icons.play_arrow, size: 16),
+            label: const Text('Start'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        if (booking.status == BookingStatus.active)
+          ElevatedButton.icon(
+            onPressed: () => _updateBookingStatus(booking, BookingStatus.completed),
+            icon: const Icon(Icons.stop, size: 16),
+            label: const Text('Complete'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.accentColor,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        if (booking.status == BookingStatus.pending || booking.status == BookingStatus.confirmed)
+          TextButton.icon(
+            onPressed: () => _updateBookingStatus(booking, BookingStatus.cancelled),
+            icon: const Icon(Icons.cancel, size: 16),
+            label: const Text('Cancel'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.errorColor,
+            ),
+          ),
+      ],
     );
   }
 
@@ -688,7 +571,7 @@ class _BookingManagementScreenState extends State<BookingManagementScreen> {
               _buildDetailRow('Parking Spot', booking.parkingSpotName),
               _buildDetailRow('Vehicle ID', booking.vehicleId),
               _buildDetailRow('Status', booking.status.name.toUpperCase()),
-              _buildDetailRow('Total Price', '\$${booking.totalPrice.toStringAsFixed(2)}'),
+              _buildDetailRow('Total Price', '₹${booking.totalPrice.toStringAsFixed(2)}'),
               _buildDetailRow('Start Time', DateFormat('MMM dd, yyyy HH:mm').format(booking.startTime)),
               _buildDetailRow('End Time', DateFormat('MMM dd, yyyy HH:mm').format(booking.endTime)),
               if (booking.notes != null) _buildDetailRow('Notes', booking.notes!),

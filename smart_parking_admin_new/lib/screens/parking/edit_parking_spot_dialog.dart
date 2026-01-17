@@ -253,7 +253,7 @@ class _EditParkingSpotDialogState extends State<EditParkingSpotDialog> {
                             child: TextFormField(
                               controller: _pricePerHourController,
                               decoration: const InputDecoration(
-                                labelText: 'Price per Hour (\$) *',
+                                labelText: 'Price per Hour (₹) *',
                               ),
                               keyboardType: TextInputType.number,
                               validator: (value) {

@@ -140,10 +140,10 @@ class DatabaseService {
     return firestore.doc(path);
   }
   
-  static Future<void> runTransaction(
-    Future<void> Function(Transaction transaction) updateFunction,
+  static Future<T> runTransaction<T>(
+    Future<T> Function(Transaction transaction) updateFunction,
   ) async {
-    return await firestore.runTransaction(updateFunction);
+    return await firestore.runTransaction<T>(updateFunction);
   }
   
   static WriteBatch batch() {

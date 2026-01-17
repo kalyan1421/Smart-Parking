@@ -19,7 +19,7 @@ class BookingProvider with ChangeNotifier {
   String? _error;
   Booking? _currentBooking;
   
-  final Uuid _uuid = const Uuid();
+
   
   BookingProvider(this._bookingRepository);
   
@@ -112,14 +112,25 @@ class BookingProvider with ChangeNotifier {
       print('🧩 DEBUG: ✅ Capacity check passed. Overlaps: ${relevantBookings.length}, Capacity: ${parkingSpot.totalSpots}');
       
       // Use Firestore transaction to ensure data consistency
-      final bookingId = _uuid.v4();
       Booking? createdBooking;
       
       await DatabaseService.runTransaction((transaction) async {
-        // Get parking spot details
-        final spotDoc = await transaction.get(
-          DatabaseService.collection('parkingSpots').doc(parkingSpot.id)
-        );
+        final counterRef = DatabaseService.collection('counters').doc('bookings');
+        final spotRef = DatabaseService.collection('parkingSpots').doc(parkingSpot.id);
+        
+        // Read all docs before any writes to satisfy Firestore transaction rules
+        final counterSnapshot = await transaction.get(counterRef);
+        final spotDoc = await transaction.get(spotRef);
+        
+        // Generate next booking number
+        int newNumber;
+        if (!counterSnapshot.exists) {
+          newNumber = 1;
+        } else {
+          final data = counterSnapshot.data() as Map<String, dynamic>;
+          newNumber = (data['lastId'] as int) + 1;
+        }
+        final bookingId = 'QB${newNumber.toString().padLeft(6, '0')}';
         
         if (!spotDoc.exists) {
           throw Exception('Parking spot not found');
@@ -169,6 +180,9 @@ class BookingProvider with ChangeNotifier {
         print('  - updatedAt: ${bookingMap['updatedAt']}');
         print('  - All keys: ${bookingMap.keys.toList()}');
         
+        // Update counter first now that all reads are complete
+        transaction.set(counterRef, {'lastId': newNumber});
+        
         // Save booking
         transaction.set(
           DatabaseService.collection('bookings').doc(bookingId),
@@ -177,7 +191,7 @@ class BookingProvider with ChangeNotifier {
         
         // Update parking spot availability
         transaction.update(
-          DatabaseService.collection('parkingSpots').doc(parkingSpot.id),
+          spotRef,
           {
             'availableSpots': spot.availableSpots - 1,
             'updatedAt': FieldValue.serverTimestamp(),

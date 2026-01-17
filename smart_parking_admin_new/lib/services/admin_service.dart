@@ -110,13 +110,39 @@ class AdminService {
   }
 
   // Add new parking spot
-  Future<String> addParkingSpot(ParkingSpot parkingSpot) async {
+  Future<ParkingSpot> addParkingSpot(ParkingSpot parkingSpot) async {
+    final newId = await _getNextId('parkingSpots');
     try {
-      final docRef = await _firestore.collection('parkingSpots').add(parkingSpot.toMap());
-      return docRef.id;
+      final newParkingSpot = parkingSpot.copyWith(
+        id: newId,
+        updatedAt: DateTime.now(),
+      );
+      await _firestore.collection('parkingSpots').doc(newId).set(newParkingSpot.toMap());
+      return newParkingSpot;
     } catch (e) {
       throw Exception('Failed to add parking spot: $e');
     }
+  }
+
+  Future<String> _getNextId(String counterName) async {
+    final counterRef = _firestore.collection('counters').doc(counterName);
+    return _firestore.runTransaction((transaction) async {
+      final counterSnapshot = await transaction.get(counterRef);
+      int newNumber;
+      if (!counterSnapshot.exists) {
+        newNumber = 1;
+      } else {
+        final data = counterSnapshot.data() as Map<String, dynamic>;
+        newNumber = (data['lastId'] as int) + 1;
+      }
+      transaction.set(counterRef, {'lastId': newNumber});
+      if (counterName == 'parkingSpots') {
+        return 'QP${newNumber.toString().padLeft(6, '0')}';
+      } else if (counterName == 'bookings') {
+        return 'QB${newNumber.toString().padLeft(6, '0')}';
+      }
+      throw Exception('Unknown counter name');
+    });
   }
 
   // Update parking spot

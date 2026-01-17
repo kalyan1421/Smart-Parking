@@ -277,7 +277,7 @@ class ParkingSpot {
 
   @override
   String toString() {
-    return 'ParkingSpot{id: $id, name: $name, availableSpots: $availableSpots/$totalSpots, price: \$${pricePerHour.toStringAsFixed(2)}/hr}';
+    return 'ParkingSpot{id: $id, name: $name, availableSpots: $availableSpots/$totalSpots, price: ₹${pricePerHour.toStringAsFixed(2)}/hr}';
   }
 }
 

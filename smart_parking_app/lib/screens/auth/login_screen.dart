@@ -35,12 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     
     if (success && mounted) {
-      final user = authProvider.currentUser;
-      if (user != null && user.hasRole(UserRole.parkingOperator)) {
-        Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
-      } else {
-        Navigator.pushReplacementNamed(context, AppRoutes.home);
-      }
+      Navigator.pushReplacementNamed(context, AppRoutes.home);
     }
   }
   
@@ -200,10 +195,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: authProvider.isLoading ? null : () async {
                           final success = await authProvider.signInWithGoogle();
                           if (success && mounted) {
-                            final user = authProvider.currentUser;
-                            if (user != null && user.hasRole(UserRole.parkingOperator)) {
-                              Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
-                            } else if (!authProvider.isProfileComplete) {
+                            if (!authProvider.isProfileComplete) {
                               Navigator.pushReplacementNamed(context, AppRoutes.completeProfile);
                             } else {
                               Navigator.pushReplacementNamed(context, AppRoutes.home);

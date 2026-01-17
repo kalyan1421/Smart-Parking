@@ -41,6 +41,16 @@ service cloud.firestore {
     }
     
     // ─────────────────────
+    // Counters collection
+    // ─────────────────────
+    match /counters/{counterName} {
+      // Allow authenticated users to read and write to counters.
+      // This is necessary for generating sequential IDs for bookings and parking spots.
+      // A more secure rule would validate that the 'lastId' is only being incremented.
+      allow read, write: if isAuthenticated();
+    }
+    
+    // ─────────────────────
     // Users collection
     // ─────────────────────
     match /users/{userId} {
