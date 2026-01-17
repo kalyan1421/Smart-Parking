@@ -442,7 +442,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     });
 
     try {
-      final results = await context.read<AdminProvider>().searchUsers(query);
+      final results = await context.read<AdminProvider>().searchUsersAsync(query);
       setState(() {
         _searchResults = results;
       });

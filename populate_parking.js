@@ -1,130 +1,184 @@
-
 const admin = require('firebase-admin');
 const geohash = require('ngeohash');
 
-// 1. Initialize Firebase Admin SDK
-// Make sure you have your serviceAccountKey.json in the same folder
+// --- CONFIGURATION ---
+// ⚠️ IMPORTANT: Check your database_service.dart in the Customer App. 
+// If it uses 'parking_spots', keep this. If it uses 'parkingSpots', change it here.
+const COLLECTION_NAME = 'parking_spots'; 
+const ID_PREFIX = 'QP'; // Quick Park prefix
+const ID_START = 1; // Starting number
+
 var serviceAccount = require("./serviceAccountKey.json");
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
 
 const db = admin.firestore();
 
-// 2. Configuration Data
-const CITIES = [
-  { name: 'hyderabad', lat: 17.3850, lng: 78.4867, weight: 0.4 }, // 40% of spots
-  { name: 'chennai', lat: 13.0827, lng: 80.2707, weight: 0.3 },   // 30% of spots
-  { name: 'vijayawada', lat: 16.5062, lng: 80.6480, weight: 0.1 },
-  { name: 'visakhapatnam', lat: 17.6868, lng: 83.2185, weight: 0.1 },
-  { name: 'tirupati', lat: 13.6288, lng: 79.4192, weight: 0.1 }
+// --- DATA SETS ---
+const AMENITIES_OPTIONS = [
+  'Security Camera', 'Lighting', 'Covered', 'EV Charging', 
+  '24/7 Access', 'Wheelchair Accessible', 'Restroom Nearby', 
+  'Car Wash', 'Valet Service', 'Security Guard'
 ];
 
-const PARKING_NAMES = [
-  "City Center Parking", "Mall Plaza Spot", "Metro Station Park", 
-  "Market Complex", "Tech Park Zone", "Central Garage", "High Street Parking",
-  "Residency Grounds", "Airport Long Stay", "Railway Station Slot"
+const VEHICLE_TYPES = ['car', 'motorcycle', 'suv'];
+
+const DESCRIPTIONS = [
+  "Safe and secure parking spot near the main market.",
+  "Covered parking with 24/7 security guard.",
+  "Easy access to metro station and bus stops.",
+  "Spacious slots suitable for SUVs and sedans.",
+  "Automated entry system with EV charging capabilities."
 ];
 
-const FACILITIES_LIST = [
-  "CCTV", "Covered Roof", "EV Charging", "Disabled Access", "24/7 Guard", "Car Wash"
-];
-
-// Helper to get random number in range
-const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-
-// Helper to generate random coordinates around a center point (radius in degrees approx)
-const randomLocation = (centerLat, centerLng, radius = 0.05) => {
-  const y0 = centerLat;
-  const x0 = centerLng;
-  const u = Math.random();
-  const v = Math.random();
-  const w = radius * Math.sqrt(u);
-  const t = 2 * Math.PI * v;
-  const x = w * Math.cos(t);
-  const y = w * Math.sin(t);
-  return {
-    latitude: y + y0,
-    longitude: x + x0
-  };
-};
-
-async function generateData() {
-  console.log("🚀 Starting data generation for 500 spots...");
+// --- ZONES (Hyderabad, Chennai, AP) ---
+const ZONES = [
+  // Hyderabad
+  { city: 'Hyderabad', area: 'HITEC City', lat: 17.4472, lng: 78.3765, count: 35 },
+  { city: 'Hyderabad', area: 'Gachibowli', lat: 17.4401, lng: 78.3489, count: 35 },
+  { city: 'Hyderabad', area: 'Jubilee Hills', lat: 17.4311, lng: 78.4112, count: 20 },
+  { city: 'Hyderabad', area: 'Banjara Hills', lat: 17.4138, lng: 78.4398, count: 20 },
+  { city: 'Hyderabad', area: 'Secunderabad', lat: 17.4399, lng: 78.4983, count: 25 },
+  { city: 'Hyderabad', area: 'Kukatpally', lat: 17.4917, lng: 78.3920, count: 25 },
   
-  const batchSize = 400; // Firestore batch limit is 500
-  let batch = db.batch();
-  let count = 0;
-  let totalCreated = 0;
+  // Chennai
+  { city: 'Chennai', area: 'T Nagar', lat: 13.0427, lng: 80.2375, count: 30 },
+  { city: 'Chennai', area: 'Anna Nagar', lat: 13.0850, lng: 80.2065, count: 25 },
+  { city: 'Chennai', area: 'Velachery', lat: 12.9760, lng: 80.2212, count: 25 },
+  { city: 'Chennai', area: 'OMR', lat: 12.9654, lng: 80.2461, count: 30 },
+  
+  // Andhra Pradesh
+  { city: 'Vijayawada', area: 'Benz Circle', lat: 16.4997, lng: 80.6561, count: 25 },
+  { city: 'Vijayawada', area: 'MG Road', lat: 16.5062, lng: 80.6480, count: 20 },
+  { city: 'Visakhapatnam', area: 'Dwaraka Nagar', lat: 17.7298, lng: 83.3088, count: 25 },
+  { city: 'Visakhapatnam', area: 'Beach Road', lat: 17.7100, lng: 83.3200, count: 20 },
+  { city: 'Tirupati', area: 'Railway Station', lat: 13.6280, lng: 79.4190, count: 20 },
+  { city: 'Tirupati', area: 'Alipiri', lat: 13.6496, lng: 79.3980, count: 20 }
+];
 
-  for (let i = 0; i < 500; i++) {
-    // 1. Pick a city based on weight
-    const rand = Math.random();
-    let cumulativeWeight = 0;
-    let selectedCity = CITIES[0];
-    
-    for (const city of CITIES) {
-      cumulativeWeight += city.weight;
-      if (rand <= cumulativeWeight) {
-        selectedCity = city;
-        break;
-      }
-    }
-
-    // 2. Generate Random Location
-    const loc = randomLocation(selectedCity.lat, selectedCity.lng);
-    const hash = geohash.encode(loc.latitude, loc.longitude);
-
-    // 3. Generate Random Details
-    const totalSlots = randomInt(20, 150);
-    const availableSlots = randomInt(0, totalSlots);
-    const price = randomInt(20, 100); // Price between 20-100 per hour
-    
-    // Pick random 2-4 facilities
-    const facilities = [];
-    while(facilities.length < randomInt(2, 4)) {
-        const f = FACILITIES_LIST[Math.floor(Math.random() * FACILITIES_LIST.length)];
-        if(!facilities.includes(f)) facilities.push(f);
-    }
-
-    // 4. Create Document Object
-    const ref = db.collection('parking_spots').doc();
-    const parkingData = {
-      name: `${PARKING_NAMES[randomInt(0, PARKING_NAMES.length - 1)]} - ${randomInt(100, 999)}`,
-      address: `Sector ${randomInt(1, 99)}, ${selectedCity.name}, ${selectedCity.name === 'chennai' ? 'TN' : 'AP/TS'}`,
-      city: selectedCity.name,
-      location: new admin.firestore.GeoPoint(loc.latitude, loc.longitude),
-      geoHash: hash,
-      totalSlots: totalSlots,
-      availableSlots: availableSlots,
-      pricePerHour: price,
-      facilities: facilities,
-      isActive: true,
-      imageUrl: "https://maps.gstatic.com/tactile/basepage/pegman_sherlock.png", // Placeholder
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    };
-
-    batch.set(ref, parkingData);
-    count++;
-    totalCreated++;
-
-    // Commit batch if full
-    if (count >= batchSize) {
-      await batch.commit();
-      console.log(`✅ Committed batch of ${count} spots...`);
-      batch = db.batch();
-      count = 0;
-    }
-  }
-
-  // Commit remaining
-  if (count > 0) {
-    await batch.commit();
-    console.log(`✅ Committed final batch of ${count} spots.`);
-  }
-
-  console.log(`🎉 Successfully created ${totalCreated} parking spots!`);
+// --- HELPERS ---
+function getRandomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-generateData().catch(console.error);
+function getRandomSubarray(arr, size) {
+  var shuffled = arr.slice(0), i = arr.length, temp, index;
+  while (i--) {
+    index = Math.floor((i + 1) * Math.random());
+    temp = shuffled[index];
+    shuffled[index] = shuffled[i];
+    shuffled[i] = temp;
+  }
+  return shuffled.slice(0, size);
+}
+
+function getOperatingHours() {
+  const schedule = {};
+  ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].forEach(day => {
+    schedule[day] = {
+      open: '06:00',
+      close: '23:00'
+    };
+  });
+  return schedule;
+}
+
+function fuzzLocation(lat, lng) {
+  // Randomize within ~500-800m
+  const latOffset = (Math.random() - 0.5) * 0.008; 
+  const lngOffset = (Math.random() - 0.5) * 0.008;
+  return { lat: lat + latOffset, lng: lng + lngOffset };
+}
+
+// Generate sequential ID like QP000001, QP000002, etc.
+function generateSequentialId(number) {
+  return `${ID_PREFIX}${String(number).padStart(6, '0')}`;
+}
+
+// --- MAIN GENERATOR ---
+async function run() {
+  console.log(`🚀 Starting Smart Parking Seed into '${COLLECTION_NAME}'...`);
+  console.log(`📋 Using sequential IDs: ${ID_PREFIX}000001, ${ID_PREFIX}000002, ...`);
+  
+  const batchLimit = 400;
+  let batch = db.batch();
+  let operationCounter = 0;
+  let sequentialId = ID_START; // Global counter for sequential IDs
+
+  for (const zone of ZONES) {
+    console.log(`📍 Processing ${zone.city} - ${zone.area}...`);
+
+    for (let i = 0; i < zone.count; i++) {
+      const loc = fuzzLocation(zone.lat, zone.lng);
+      const hash = geohash.encode(loc.lat, loc.lng);
+      
+      const totalSpots = getRandomInt(10, 80);
+      const availableSpots = getRandomInt(0, totalSpots);
+      
+      // Generate sequential document ID
+      const docId = generateSequentialId(sequentialId);
+      const docRef = db.collection(COLLECTION_NAME).doc(docId);
+      
+      const parkingSpot = {
+        id: docId, // Use sequential ID
+        name: `${zone.area} Parking ${String.fromCharCode(65 + i % 26)}-${getRandomInt(100, 999)}`,
+        description: DESCRIPTIONS[getRandomInt(0, DESCRIPTIONS.length - 1)],
+        address: `${getRandomInt(1, 100)}, Main Road, ${zone.area}, ${zone.city}`,
+        
+        // Geospatial Data (Critical)
+        location: new admin.firestore.GeoPoint(loc.lat, loc.lng),
+        latitude: loc.lat,   // For your model mapping
+        longitude: loc.lng,  // For your model mapping
+        geoHash: hash,
+        
+        // Capacity & Price
+        totalSpots: totalSpots,
+        availableSpots: availableSpots,
+        pricePerHour: getRandomInt(20, 100),
+        
+        // Arrays & Objects
+        amenities: getRandomSubarray(AMENITIES_OPTIONS, getRandomInt(2, 5)),
+        vehicleTypes: getRandomSubarray(VEHICLE_TYPES, getRandomInt(1, 3)),
+        operatingHours: getOperatingHours(),
+        images: ["https://maps.gstatic.com/tactile/basepage/pegman_sherlock.png"], // Placeholder
+        
+        // Meta
+        status: 'available', // Enum matching
+        ownerId: 'system_admin_script',
+        contactPhone: `+91 ${getRandomInt(7000000000, 9999999999)}`,
+        rating: parseFloat((3.5 + Math.random() * 1.5).toFixed(1)),
+        reviewCount: getRandomInt(5, 100),
+        isVerified: true,
+        
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+
+      batch.set(docRef, parkingSpot);
+      operationCounter++;
+      sequentialId++; // Increment for next document
+
+      if (operationCounter >= batchLimit) {
+        await batch.commit();
+        console.log(`   ✅ Committed batch of ${operationCounter} spots (up to ${generateSequentialId(sequentialId - 1)})...`);
+        batch = db.batch();
+        operationCounter = 0;
+      }
+    }
+  }
+
+  if (operationCounter > 0) {
+    await batch.commit();
+  }
+
+  const totalAdded = sequentialId - ID_START;
+  console.log(`\n🎉 SUCCESS! Added ${totalAdded} parking spots.`);
+  console.log(`📝 IDs range: ${generateSequentialId(ID_START)} to ${generateSequentialId(sequentialId - 1)}`);
+  console.log(`⚠️ NOTE: Ensure your Flutter app's 'DatabaseService' queries the collection: '${COLLECTION_NAME}'`);
+}
+
+run().catch(console.error);

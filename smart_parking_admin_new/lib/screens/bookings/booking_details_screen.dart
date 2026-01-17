@@ -37,7 +37,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
 
   void _processBooking() async {
     final adminService = Provider.of<AdminService>(context, listen: false);
-    final result = await adminService.processBooking(widget.booking.id);
+    final result = await adminService.processBookingAtomic(widget.booking.id);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(result),

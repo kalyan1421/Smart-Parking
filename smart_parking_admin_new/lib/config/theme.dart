@@ -1,7 +1,6 @@
 // lib/config/theme.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'app_config.dart';
 
 class AppTheme {
   // Modern color palette - Cyberpunk-inspired
@@ -258,7 +257,7 @@ class AppTheme {
           side: BorderSide(color: _borderDark),
         ),
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: _surfaceDark,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),

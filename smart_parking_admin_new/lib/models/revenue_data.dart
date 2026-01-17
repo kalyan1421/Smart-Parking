@@ -81,11 +81,28 @@ class RevenueData {
   }
 }
 
+/// Simple daily revenue data for charts
+class DailyRevenueData {
+  final DateTime date;
+  final double revenue;
+  final int bookings;
+
+  DailyRevenueData({
+    required this.date,
+    required this.revenue,
+    required this.bookings,
+  });
+
+  String get dateString {
+    return '${date.day}/${date.month}';
+  }
+}
+
 class AggregatedRevenueData {
   final double totalRevenue;
   final int totalBookings;
   final double averageBookingValue;
-  final List<RevenueData> dailyData;
+  final List<dynamic> dailyData; // Can be RevenueData or DailyRevenueData
   final Map<String, double> monthlyRevenue; // Month -> revenue
   final Map<String, int> monthlyBookings; // Month -> bookings
 
@@ -102,5 +119,24 @@ class AggregatedRevenueData {
   double calculateGrowthRate(AggregatedRevenueData previous) {
     if (previous.totalRevenue == 0) return 0.0;
     return ((totalRevenue - previous.totalRevenue) / previous.totalRevenue) * 100;
+  }
+
+  // Get daily data as DailyRevenueData list
+  List<DailyRevenueData> get dailyRevenueData {
+    return dailyData.map((item) {
+      if (item is DailyRevenueData) return item;
+      if (item is RevenueData) {
+        return DailyRevenueData(
+          date: item.date,
+          revenue: item.dailyRevenue,
+          bookings: item.totalBookings,
+        );
+      }
+      return DailyRevenueData(
+        date: DateTime.now(),
+        revenue: 0,
+        bookings: 0,
+      );
+    }).toList();
   }
 }
