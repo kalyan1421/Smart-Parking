@@ -30,21 +30,17 @@ class AuthProvider with ChangeNotifier {
     _setLoading(true);
     
     try {
-      print('🧩 Phase1Audit: Auth initialize()');
       // Listen to Firebase Auth state changes
       DatabaseService.auth.authStateChanges().listen(_onAuthStateChanged);
       
       // Check current user
       final firebaseUser = DatabaseService.auth.currentUser;
       if (firebaseUser != null) {
-        print('🧩 Phase1Audit: Firebase currentUser detected uid=${firebaseUser.uid}');
         await _loadUserProfile(firebaseUser.uid);
       } else {
-        print('🧩 Phase1Audit: No currentUser, set unauthenticated');
         _setStatus(AuthStatus.unauthenticated);
       }
     } catch (e) {
-      print('🧩 Phase1Audit: Error initialize -> $e');
       _setError('Failed to initialize auth: $e');
     } finally {
       _setLoading(false);
@@ -54,10 +50,8 @@ class AuthProvider with ChangeNotifier {
   // Handle Firebase Auth state changes
   Future<void> _onAuthStateChanged(firebase_auth.User? firebaseUser) async {
     if (firebaseUser != null) {
-      print('🧩 Phase1Audit: authStateChanged -> signed in uid=${firebaseUser.uid}');
       await _loadUserProfile(firebaseUser.uid);
     } else {
-      print('🧩 Phase1Audit: authStateChanged -> signed out');
       _user = null;
       _setStatus(AuthStatus.unauthenticated);
     }
@@ -66,27 +60,16 @@ class AuthProvider with ChangeNotifier {
   // Load user profile from Firestore
   Future<void> _loadUserProfile(String uid) async {
     try {
-      print('DEBUG: Loading user profile for UID: $uid');
-      print('🧩 Phase1Audit: Loading user profile uid=$uid');
       final userDoc = await DatabaseService.collection('users').doc(uid).get();
       
       if (userDoc.exists) {
-        print('DEBUG: User document exists, parsing...');
-        print('DEBUG: Document data: ${userDoc.data()}');
         _user = User.fromFirestore(userDoc);
         _setStatus(AuthStatus.authenticated);
-        
-        print('DEBUG: User profile loaded successfully');
-        print('🧩 Phase1Audit: User profile loaded uid=$uid');
       } else {
-        print('DEBUG: User document does not exist, creating profile...');
         // Create user profile if it doesn't exist
         await _createUserProfile(uid);
       }
     } catch (e) {
-      print('DEBUG: Error loading user profile: $e');
-      print('DEBUG: Error stack trace: ${StackTrace.current}');
-      print('🧩 Phase1Audit: Error _loadUserProfile -> $e');
       _setError('Failed to load user profile: $e');
     }
   }
@@ -105,8 +88,6 @@ class AuthProvider with ChangeNotifier {
         role: UserRole.user,
         isEmailVerified: firebaseUser.emailVerified,
         isPhoneVerified: firebaseUser.phoneNumber != null,
-        // createdAt: DateTime.now(),
-        // updatedAt: DateTime.now(),
       );
 
       await DatabaseService.collection('users').doc(uid).set(newUser.toMap());
@@ -158,8 +139,6 @@ class AuthProvider with ChangeNotifier {
             role: UserRole.user,
             isEmailVerified: userCredential.user!.emailVerified,
             isPhoneVerified: false,
-            // createdAt: DateTime.now(),
-            // updatedAt: DateTime.now(),
           );
           
           await DatabaseService.collection('users').doc(userCredential.user!.uid).set(newUser.toMap());
@@ -174,7 +153,6 @@ class AuthProvider with ChangeNotifier {
       
       return false;
     } catch (e) {
-      print('Google Sign-in error: $e');
       _setError('Google Sign In failed: $e');
       return false;
     } finally {
@@ -202,7 +180,6 @@ class AuthProvider with ChangeNotifier {
     _clearError();
 
     try {
-      print('🧩 Phase1Audit: login email=$email');
       final credential = await DatabaseService.auth.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -214,7 +191,6 @@ class AuthProvider with ChangeNotifier {
       }
       return false;
     } catch (e) {
-      print('🧩 Phase1Audit: Error login -> $e');
       _setError('Sign in failed: $e');
       return false;
     } finally {
@@ -228,16 +204,12 @@ class AuthProvider with ChangeNotifier {
     _clearError();
 
     try {
-      print('DEBUG: Starting registration for email: $email');
-      print('🧩 Phase1Audit: register email=$email');
       final credential = await DatabaseService.auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       if (credential.user != null) {
-        print('DEBUG: Firebase user created with UID: ${credential.user!.uid}');
-        
         // Create minimal user profile - additional details will be collected later
         final newUser = User(
           id: credential.user!.uid,
@@ -246,14 +218,9 @@ class AuthProvider with ChangeNotifier {
           role: UserRole.user,
           isEmailVerified: false,
           isPhoneVerified: false,
-          // createdAt: DateTime.now(),
-          // updatedAt: DateTime.now(),
         );
 
-        print('DEBUG: Creating Firestore document...');
-        print('DEBUG: User data to save: ${newUser.toMap()}');
         await DatabaseService.collection('users').doc(credential.user!.uid).set(newUser.toMap());
-        print('DEBUG: Firestore document created successfully');
         
         _user = newUser;
         _setStatus(AuthStatus.authenticated);
@@ -261,18 +228,14 @@ class AuthProvider with ChangeNotifier {
         // Send email verification
         try {
           await sendEmailVerification();
-          print('DEBUG: Email verification sent');
         } catch (e) {
-          print('DEBUG: Failed to send email verification: $e');
+          // Email verification failed, but registration succeeded
         }
         
         return true;
       }
       return false;
     } catch (e) {
-      print('DEBUG: Registration error: $e');
-      print('DEBUG: Error stack trace: ${StackTrace.current}');
-      print('🧩 Phase1Audit: Error register -> $e');
       _setError('Registration failed: $e');
       return false;
     } finally {
@@ -319,7 +282,6 @@ class AuthProvider with ChangeNotifier {
         phoneNumber: phoneNumber,
         city: city,
         emergencyContact: emergencyContact,
-        // updatedAt: DateTime.now(),
       );
 
       await DatabaseService.collection('users').doc(_user!.id).update(updatedUser.toMap());
@@ -358,7 +320,6 @@ class AuthProvider with ChangeNotifier {
         role: role,
         preferences: preferences,
         location: location,
-        //  updatedAt: DateTime.now(),
       );
 
       await DatabaseService.collection('users').doc(_user!.id).update(updatedUser.toMap());
@@ -406,7 +367,6 @@ class AuthProvider with ChangeNotifier {
     _setLoading(true);
     
     try {
-      print('🧩 Phase1Audit: logout');
       await Future.wait([
         DatabaseService.auth.signOut(),
         _googleSignIn.signOut(), // Sign out from Google
@@ -416,7 +376,6 @@ class AuthProvider with ChangeNotifier {
       _verificationId = null;
       _setStatus(AuthStatus.unauthenticated);
     } catch (e) {
-      print('🧩 Phase1Audit: Error logout -> $e');
       _setError('Sign out failed: $e');
     } finally {
       _setLoading(false);

@@ -1,9 +1,8 @@
 // lib/widgets/custom_marker_generator.dart
-// Custom marker generator with parking name + live available slots
+// Optimized custom marker generator with efficient caching and resource management
 
 import 'dart:async';
 import 'dart:ui' as ui;
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -11,9 +10,157 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 /// - Parking lot name
 /// - Live available slots count
 /// - Color-coded availability status
+/// 
+/// Optimized to prevent ImageReader buffer exhaustion
 class CustomMarkerGenerator {
   // Cache to avoid regenerating identical markers
   static final Map<String, BitmapDescriptor> _markerCache = {};
+  
+  // Semaphore to limit concurrent image generation
+  static int _activeGenerations = 0;
+  static const int _maxConcurrentGenerations = 3;
+  static final List<Completer<void>> _waitQueue = [];
+  
+  // Cache size limit
+  static const int _maxCacheSize = 50;
+  
+  /// Wait for slot to generate image
+  static Future<void> _acquireSlot() async {
+    if (_activeGenerations < _maxConcurrentGenerations) {
+      _activeGenerations++;
+      return;
+    }
+    
+    final completer = Completer<void>();
+    _waitQueue.add(completer);
+    await completer.future;
+    _activeGenerations++;
+  }
+  
+  /// Release slot after generation
+  static void _releaseSlot() {
+    _activeGenerations--;
+    if (_waitQueue.isNotEmpty && _activeGenerations < _maxConcurrentGenerations) {
+      final next = _waitQueue.removeAt(0);
+      next.complete();
+    }
+  }
+  
+  /// Get availability category for smarter caching
+  /// Instead of caching every unique number, cache by category
+  static String _getAvailabilityCategory(int available, int total) {
+    if (available == 0) return 'full';
+    final ratio = available / total;
+    if (ratio <= 0.1) return 'critical';
+    if (ratio <= 0.25) return 'low';
+    if (ratio <= 0.5) return 'medium';
+    return 'high';
+  }
+  
+  /// Generate a simple colored marker with just the slot count
+  /// Optimized with resource management
+  static Future<BitmapDescriptor> generateSlotMarker({
+    required int availableSpots,
+    required int totalSpots,
+    double size = 48,
+  }) async {
+    // Use category-based caching to reduce unique markers
+    final category = _getAvailabilityCategory(availableSpots, totalSpots);
+    final displayNumber = availableSpots > 99 ? '99+' : availableSpots.toString();
+    final cacheKey = 'slot_${category}_$displayNumber';
+    
+    // Return cached marker if available
+    if (_markerCache.containsKey(cacheKey)) {
+      return _markerCache[cacheKey]!;
+    }
+    
+    // Limit cache size
+    if (_markerCache.length >= _maxCacheSize) {
+      // Remove oldest entries
+      final keysToRemove = _markerCache.keys.take(10).toList();
+      for (final key in keysToRemove) {
+        _markerCache.remove(key);
+      }
+    }
+    
+    // Wait for available slot
+    await _acquireSlot();
+    
+    try {
+      // Double-check cache after waiting
+      if (_markerCache.containsKey(cacheKey)) {
+        return _markerCache[cacheKey]!;
+      }
+      
+      final color = _getAvailabilityColor(availableSpots, totalSpots);
+      
+      final pictureRecorder = ui.PictureRecorder();
+      final canvas = Canvas(pictureRecorder);
+      
+      // Draw circle background
+      final paint = Paint()
+        ..color = color
+        ..style = PaintingStyle.fill;
+      
+      canvas.drawCircle(Offset(size / 2, size / 2), size / 2 - 2, paint);
+      
+      // Draw border
+      final borderPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3;
+      
+      canvas.drawCircle(Offset(size / 2, size / 2), size / 2 - 2, borderPaint);
+      
+      // Draw slot count text
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: displayNumber,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: size * 0.35,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(
+          (size - textPainter.width) / 2,
+          (size - textPainter.height) / 2,
+        ),
+      );
+      
+      final picture = pictureRecorder.endRecording();
+      final image = await picture.toImage(size.toInt(), size.toInt());
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      
+      // Dispose image to free resources
+      image.dispose();
+      
+      if (byteData == null) {
+        return BitmapDescriptor.defaultMarker;
+      }
+      
+      final bytes = byteData.buffer.asUint8List();
+      final descriptor = BitmapDescriptor.bytes(bytes);
+      
+      // Cache the result
+      _markerCache[cacheKey] = descriptor;
+      
+      return descriptor;
+    } catch (e) {
+      // Return default marker on error
+      return BitmapDescriptor.defaultMarkerWithHue(
+        availableSpots == 0 ? BitmapDescriptor.hueRed : BitmapDescriptor.hueGreen
+      );
+    } finally {
+      _releaseSlot();
+    }
+  }
   
   /// Generate a custom marker with parking name and available slots
   static Future<BitmapDescriptor> generateMarker({
@@ -23,105 +170,62 @@ class CustomMarkerGenerator {
     double width = 180,
     double height = 80,
   }) async {
-    // Create cache key
-    final cacheKey = '${name}_${availableSpots}_$totalSpots';
-    
-    // Return cached marker if available
-    if (_markerCache.containsKey(cacheKey)) {
-      return _markerCache[cacheKey]!;
-    }
-    
-    // Determine color based on availability
-    final color = _getAvailabilityColor(availableSpots, totalSpots);
-    final textColor = _getTextColor(availableSpots);
-    
-    // Create the marker image
-    final pictureRecorder = ui.PictureRecorder();
-    final canvas = Canvas(pictureRecorder);
-    
-    // Draw marker background
-    _drawMarkerBackground(canvas, width, height, color);
-    
-    // Draw text
-    _drawMarkerText(canvas, width, height, name, availableSpots, totalSpots, textColor);
-    
-    // Convert to image
-    final picture = pictureRecorder.endRecording();
-    final image = await picture.toImage(width.toInt(), height.toInt());
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    final bytes = byteData!.buffer.asUint8List();
-    
-    final descriptor = BitmapDescriptor.bytes(bytes);
-    
-    // Cache the result
-    _markerCache[cacheKey] = descriptor;
-    
-    return descriptor;
-  }
-  
-  /// Generate a simple colored marker with just the slot count
-  static Future<BitmapDescriptor> generateSlotMarker({
-    required int availableSpots,
-    required int totalSpots,
-    double size = 48,
-  }) async {
-    final cacheKey = 'slot_${availableSpots}_$totalSpots';
+    final category = _getAvailabilityCategory(availableSpots, totalSpots);
+    final truncatedName = name.length > 10 ? name.substring(0, 10) : name;
+    final cacheKey = 'marker_${truncatedName}_${category}_$availableSpots';
     
     if (_markerCache.containsKey(cacheKey)) {
       return _markerCache[cacheKey]!;
     }
     
-    final color = _getAvailabilityColor(availableSpots, totalSpots);
+    // Limit cache size
+    if (_markerCache.length >= _maxCacheSize) {
+      final keysToRemove = _markerCache.keys.take(10).toList();
+      for (final key in keysToRemove) {
+        _markerCache.remove(key);
+      }
+    }
     
-    final pictureRecorder = ui.PictureRecorder();
-    final canvas = Canvas(pictureRecorder);
+    await _acquireSlot();
     
-    // Draw circle background
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    
-    canvas.drawCircle(Offset(size / 2, size / 2), size / 2 - 2, paint);
-    
-    // Draw border
-    final borderPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    
-    canvas.drawCircle(Offset(size / 2, size / 2), size / 2 - 2, borderPaint);
-    
-    // Draw slot count text
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: availableSpots.toString(),
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: size * 0.4,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(
-        (size - textPainter.width) / 2,
-        (size - textPainter.height) / 2,
-      ),
-    );
-    
-    final picture = pictureRecorder.endRecording();
-    final image = await picture.toImage(size.toInt(), size.toInt());
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    final bytes = byteData!.buffer.asUint8List();
-    
-    final descriptor = BitmapDescriptor.bytes(bytes);
-    _markerCache[cacheKey] = descriptor;
-    
-    return descriptor;
+    try {
+      if (_markerCache.containsKey(cacheKey)) {
+        return _markerCache[cacheKey]!;
+      }
+      
+      final color = _getAvailabilityColor(availableSpots, totalSpots);
+      final textColor = Colors.white;
+      
+      final pictureRecorder = ui.PictureRecorder();
+      final canvas = Canvas(pictureRecorder);
+      
+      _drawMarkerBackground(canvas, width, height, color);
+      _drawMarkerText(canvas, width, height, name, availableSpots, totalSpots, textColor);
+      
+      final picture = pictureRecorder.endRecording();
+      final image = await picture.toImage(width.toInt(), height.toInt());
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      
+      // Dispose image to free resources
+      image.dispose();
+      
+      if (byteData == null) {
+        return BitmapDescriptor.defaultMarker;
+      }
+      
+      final bytes = byteData.buffer.asUint8List();
+      final descriptor = BitmapDescriptor.bytes(bytes);
+      
+      _markerCache[cacheKey] = descriptor;
+      
+      return descriptor;
+    } catch (e) {
+      return BitmapDescriptor.defaultMarkerWithHue(
+        availableSpots == 0 ? BitmapDescriptor.hueRed : BitmapDescriptor.hueGreen
+      );
+    } finally {
+      _releaseSlot();
+    }
   }
   
   /// Get color based on availability percentage
@@ -129,6 +233,8 @@ class CustomMarkerGenerator {
     if (available == 0) {
       return const Color(0xFFE53935); // Red - Full
     }
+    
+    if (total == 0) return const Color(0xFF4CAF50);
     
     final percentage = available / total;
     
@@ -141,10 +247,6 @@ class CustomMarkerGenerator {
     } else {
       return const Color(0xFF4CAF50); // Green - Many spots
     }
-  }
-  
-  static Color _getTextColor(int available) {
-    return available == 0 ? Colors.white : Colors.white;
   }
   
   static void _drawMarkerBackground(
@@ -299,11 +401,22 @@ class ParkingMarkerData {
     this.cachedIcon,
   });
   
-  /// Check if marker needs icon update
+  /// Check if marker needs icon update - uses category comparison
   bool needsIconUpdate(ParkingMarkerData other) {
-    return availableSpots != other.availableSpots || 
-           totalSpots != other.totalSpots ||
-           name != other.name;
+    // Only regenerate if category changed, not exact number
+    final oldCategory = _getCategory(availableSpots, totalSpots);
+    final newCategory = _getCategory(other.availableSpots, other.totalSpots);
+    return oldCategory != newCategory || name != other.name;
+  }
+  
+  String _getCategory(int available, int total) {
+    if (available == 0) return 'full';
+    if (total == 0) return 'high';
+    final ratio = available / total;
+    if (ratio <= 0.1) return 'critical';
+    if (ratio <= 0.25) return 'low';
+    if (ratio <= 0.5) return 'medium';
+    return 'high';
   }
   
   /// Check if position changed

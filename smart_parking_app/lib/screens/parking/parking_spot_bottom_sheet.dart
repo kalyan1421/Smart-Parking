@@ -114,10 +114,6 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
     // Get current user ID
     final userId = authProvider.user?.id;
 
-    // DEBUG: Check authentication state
-    print('DEBUG auth uid: ${DatabaseService.auth.currentUser?.uid}');
-    print('DEBUG userId for booking: $userId');
-
     if (userId == null) {
       setState(() {
         _isBooking = false;

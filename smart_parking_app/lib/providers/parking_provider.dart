@@ -39,7 +39,7 @@ class ParkingProvider extends ChangeNotifier {
   double _minPrice = 0.0;
   List<String> _selectedAmenities = [];
   List<String> _selectedVehicleTypes = [];
-  double _searchRadius = 5000; // meters
+  double _searchRadius = 10000; // meters (10km default)
   String _sortBy = 'distance';
   bool _showAvailableOnly = true;
   String _searchQuery = '';
@@ -445,7 +445,17 @@ class ParkingProvider extends ChangeNotifier {
     _showAvailableOnly = true;
     _sortBy = 'distance';
     _searchQuery = '';
+    _searchRadius = 10000; // Reset to 10km default
     _applyFilters();
+    
+    // Re-stream with default radius if we have location
+    if (_currentLocation != null) {
+      startStreamingNearby(
+        _currentLocation!.latitude,
+        _currentLocation!.longitude,
+        radius: _searchRadius,
+      );
+    }
   }
   
   // ═══════════════════════════════════════════════════════════════════════════

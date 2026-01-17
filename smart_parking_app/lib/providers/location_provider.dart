@@ -21,7 +21,6 @@ class LocationProvider with ChangeNotifier {
   
   // Initialize location
   Future<void> initialize() async {
-    print('🧩 Phase1Audit: Location initialize()');
     await getCurrentLocation();
   }
   
@@ -29,15 +28,10 @@ class LocationProvider with ChangeNotifier {
   Future<void> getCurrentLocation() async {
     _setLoading(true);
     try {
-      print('🧩 Phase1Audit: Requesting current location');
       _currentPosition = await LocationService.getCurrentLocation();
-      if (_currentPosition != null) {
-        print('🧩 Phase1Audit: Current location lat=${_currentPosition!.latitude}, lng=${_currentPosition!.longitude}');
-      }
       _error = null;
       notifyListeners();
     } catch (e) {
-      print('🧩 Phase1Audit: Error getCurrentLocation -> $e');
       _error = e.toString();
       notifyListeners();
     } finally {
