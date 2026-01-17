@@ -6,7 +6,6 @@ import 'package:smart_parking_app/screens/auth/register_screen.dart';
 import 'package:smart_parking_app/screens/auth/password_reset_screen.dart';
 import 'package:smart_parking_app/screens/auth/complete_profile_screen.dart';
 import 'package:smart_parking_app/screens/home/home_screen.dart';
-import 'package:smart_parking_app/screens/maps/map_screen.dart';
 import 'package:smart_parking_app/screens/parking/parking_map_screen.dart';
 import 'package:smart_parking_app/screens/parking/parking_list_screen.dart';
 import 'package:smart_parking_app/screens/profile/booking_history_screen.dart';
@@ -56,7 +55,7 @@ class AppRoutes {
     home: (context) => HomeScreen(),
     
     // Map Routes
-    map: (context) => MapScreen(),
+    
     
     // Parking Routes
     parkingmap: (context) => ParkingMapScreen(),

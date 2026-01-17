@@ -10,7 +10,6 @@ import 'package:smart_parking_app/models/booking.dart';
 import 'package:smart_parking_app/widgets/common/loading_indicator.dart';
 import 'package:smart_parking_app/screens/parking/parking_spot_bottom_sheet.dart';
 import 'package:smart_parking_app/screens/parking/parking_directions_screen.dart';
-import 'package:smart_parking_app/config/app_config.dart';
 import 'package:smart_parking_app/config/routes.dart';
 import 'package:intl/intl.dart';
 
@@ -28,30 +27,45 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    // Defer data loading to after the build phase
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadData();
+      }
+    });
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
+    
     final locationProvider = Provider.of<LocationProvider>(context, listen: false);
     final parkingProvider = Provider.of<ParkingProvider>(context, listen: false);
     final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     
-    setState(() {
-      _isLoading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
       // Get user location first
       if (!locationProvider.hasLocation) {
         await locationProvider.getCurrentLocation();
       }
+      
+      if (!mounted) return;
 
       // Initialize location in parking provider
       await parkingProvider.initializeLocation();
+      
+      if (!mounted) return;
 
       // Load all parking spots from Firebase
       await parkingProvider.loadAllParkingSpots();
+      
+      if (!mounted) return;
 
       // Load active booking if user is logged in
       if (authProvider.currentUser != null) {
@@ -65,9 +79,11 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
         );
       }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -114,7 +130,7 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
     );
     
     return Card(
-      margin: EdgeInsets.only(bottom: 24),
+      margin: const EdgeInsets.only(bottom: 24),
       elevation: 4,
       color: Colors.white,
       shape: RoundedRectangleBorder(
@@ -122,11 +138,11 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
         side: BorderSide(color: Colors.green.withOpacity(0.5), width: 1.5),
       ),
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               children: [
                 Icon(Icons.check_circle, color: Colors.green),
                 SizedBox(width: 8),
@@ -140,14 +156,14 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                 ),
               ],
             ),
-            Divider(height: 24),
+            const Divider(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
                   child: Text(
                     booking.parkingSpotName,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
                     ),
@@ -157,11 +173,11 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                 ),
               ],
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                SizedBox(width: 4),
+                const SizedBox(width: 4),
                 Text(
                   timeRemaining,
                   style: TextStyle(
@@ -171,18 +187,18 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                 ),
               ],
             ),
-            SizedBox(height: 6),
+            const SizedBox(height: 6),
             Row(
               children: [
                 Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                SizedBox(width: 4),
+                const SizedBox(width: 4),
                 Text(
                   '${DateFormat('h:mm a').format(booking.startTime)} - ${DateFormat('h:mm a').format(booking.endTime)}',
                   style: TextStyle(color: Colors.grey[600]),
                 ),
               ],
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
@@ -197,8 +213,8 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                         ),
                       );
                     },
-                    icon: Icon(Icons.directions),
-                    label: Text('DIRECTIONS'),
+                    icon: const Icon(Icons.directions),
+                    label: const Text('DIRECTIONS'),
                     style: OutlinedButton.styleFrom(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -206,14 +222,14 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                     ),
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pushNamed(context, AppRoutes.bookingHistory);
                     },
-                    icon: Icon(Icons.visibility),
-                    label: Text('DETAILS'),
+                    icon: const Icon(Icons.visibility),
+                    label: const Text('DETAILS'),
                     style: ElevatedButton.styleFrom(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -237,7 +253,7 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => ParkingSpotBottomSheet(),
+      builder: (context) =>  ParkingSpotBottomSheet(),
     );
   }
 
@@ -284,13 +300,13 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Parking Spots'),
+        title: const Text('Parking Spots'),
         backgroundColor: Colors.blue[600],
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             onPressed: _loadData,
           ),
         ],
@@ -299,18 +315,18 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
         children: [
           // Search Bar
           Container(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             color: Colors.blue[600],
             child: TextField(
               controller: _searchController,
-              style: TextStyle(color: Colors.white),
+              style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: 'Search parking spots...',
-                hintStyle: TextStyle(color: Colors.white70),
-                prefixIcon: Icon(Icons.search, color: Colors.white),
+                hintStyle: const TextStyle(color: Colors.white70),
+                prefixIcon: const Icon(Icons.search, color: Colors.white),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.clear, color: Colors.white),
+                        icon: const Icon(Icons.clear, color: Colors.white),
                         onPressed: () {
                           _searchController.clear();
                           _loadData();
@@ -323,7 +339,7 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                   borderRadius: BorderRadius.circular(25),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
               ),
               onSubmitted: _searchParkingSpots,
             ),
@@ -335,7 +351,7 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
           // Parking Spots List
           Expanded(
             child: _isLoading
-                ? Center(child: LoadingIndicator())
+                ? const Center(child: LoadingIndicator())
                 : Consumer<ParkingProvider>(
                     builder: (context, parkingProvider, child) {
                       if (parkingProvider.error != null) {
@@ -343,29 +359,29 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.error_outline,
                                 size: 64,
                                 color: Colors.red,
                               ),
-                              SizedBox(height: 16),
-                              Text(
+                              const SizedBox(height: 16),
+                              const Text(
                                 'Error loading parking spots',
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               Text(
                                 parkingProvider.error!,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(color: Colors.grey[600]),
                               ),
-                              SizedBox(height: 16),
+                              const SizedBox(height: 16),
                               ElevatedButton(
                                 onPressed: _loadData,
-                                child: Text('Retry'),
+                                child: const Text('Retry'),
                               ),
                             ],
                           ),
@@ -379,20 +395,20 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.local_parking,
                                 size: 64,
                                 color: Colors.grey,
                               ),
-                              SizedBox(height: 16),
-                              Text(
+                              const SizedBox(height: 16),
+                              const Text(
                                 'No parking spots found',
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               Text(
                                 'Try adjusting your filters or search terms',
                                 style: TextStyle(color: Colors.grey[600]),
@@ -405,7 +421,7 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                       return RefreshIndicator(
                         onRefresh: _loadData,
                         child: ListView.builder(
-                          padding: EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(16),
                           itemCount: parkingSpots.length + 1, // +1 for possible active booking header
                           itemBuilder: (context, index) {
                             // Header Section: Active Booking
@@ -426,11 +442,11 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                                             color: Colors.grey[800],
                                           ),
                                         ),
-                                        SizedBox(height: 12),
+                                        const SizedBox(height: 12),
                                       ],
                                     );
                                   }
-                                  return SizedBox.shrink();
+                                  return const SizedBox.shrink();
                                 },
                               );
                             }
@@ -451,7 +467,7 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
 
   Widget _buildParkingSpotCard(ParkingSpot spot) {
     return Card(
-      margin: EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 16),
       elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -460,7 +476,7 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
         onTap: () => _showParkingSpotDetails(spot),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -474,13 +490,13 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                       children: [
                         Text(
                           spot.name,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         if (spot.address.isNotEmpty) ...[
-                          SizedBox(height: 4),
+                          const SizedBox(height: 4),
                           Text(
                             spot.address,
                             style: TextStyle(
@@ -493,14 +509,14 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                     ),
                   ),
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: _getStatusColor(spot.status),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       _getStatusText(spot.status),
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -510,7 +526,7 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                 ],
               ),
               
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               
               // Description
               if (spot.description.isNotEmpty) ...[
@@ -523,14 +539,14 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
               ],
               
               // Availability and Price
               Row(
                 children: [
-                  Icon(Icons.local_parking, color: Colors.blue, size: 20),
-                  SizedBox(width: 8),
+                  const Icon(Icons.local_parking, color: Colors.blue, size: 20),
+                  const SizedBox(width: 8),
                   Text(
                     '${spot.availableSpots}/${spot.totalSpots} available',
                     style: TextStyle(
@@ -538,20 +554,20 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                       color: spot.availableSpots > 0 ? Colors.green : Colors.red,
                     ),
                   ),
-                  Spacer(),
+                  const Spacer(),
                   if (spot.pricePerHour > 0) ...[
-                    Icon(Icons.currency_rupee, color: Colors.green, size: 20),
-                    SizedBox(width: 4),
+                    const Icon(Icons.currency_rupee, color: Colors.green, size: 20),
+                    const SizedBox(width: 4),
                     Text(
                       '₹${spot.pricePerHour.toStringAsFixed(0)}/hr',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.green,
                         fontSize: 16,
                       ),
                     ),
                   ] else ...[
-                    Text(
+                    const Text(
                       'FREE',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
@@ -563,38 +579,38 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
                 ],
               ),
               
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               
               // Additional info
               Row(
                 children: [
                   // Distance
                   if (_getDistanceText(spot).isNotEmpty) ...[
-                    Icon(Icons.location_on, color: Colors.grey, size: 16),
-                    SizedBox(width: 4),
+                    const Icon(Icons.location_on, color: Colors.grey, size: 16),
+                    const SizedBox(width: 4),
                     Text(
                       _getDistanceText(spot),
                       style: TextStyle(color: Colors.grey[600], fontSize: 12),
                     ),
-                    SizedBox(width: 16),
+                    const SizedBox(width: 16),
                   ],
                   
                   // Rating
                   if (spot.rating > 0) ...[
-                    Icon(Icons.star, color: Colors.amber, size: 16),
-                    SizedBox(width: 4),
+                    const Icon(Icons.star, color: Colors.amber, size: 16),
+                    const SizedBox(width: 4),
                     Text(
                       '${spot.rating.toStringAsFixed(1)} (${spot.reviewCount})',
                       style: TextStyle(color: Colors.grey[600], fontSize: 12),
                     ),
-                    SizedBox(width: 16),
+                    const SizedBox(width: 16),
                   ],
                   
                   // Verified badge
                   if (spot.isVerified) ...[
-                    Icon(Icons.verified, color: Colors.blue, size: 16),
-                    SizedBox(width: 4),
-                    Text(
+                    const Icon(Icons.verified, color: Colors.blue, size: 16),
+                    const SizedBox(width: 4),
+                    const Text(
                       'Verified',
                       style: TextStyle(color: Colors.blue, fontSize: 12),
                     ),
@@ -604,12 +620,12 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
               
               // Vehicle types
               if (spot.vehicleTypes.isNotEmpty) ...[
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   children: spot.vehicleTypes.map((type) {
                     return Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.grey[200],
                         borderRadius: BorderRadius.circular(12),

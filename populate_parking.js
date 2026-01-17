@@ -2,9 +2,8 @@ const admin = require('firebase-admin');
 const geohash = require('ngeohash');
 
 // --- CONFIGURATION ---
-// ⚠️ IMPORTANT: Check your database_service.dart in the Customer App. 
-// If it uses 'parking_spots', keep this. If it uses 'parkingSpots', change it here.
-const COLLECTION_NAME = 'parking_spots'; 
+// ⚠️ IMPORTANT: Your Firestore uses 'parkingSpots' (camelCase)
+const COLLECTION_NAME = 'parkingSpots'; 
 const ID_PREFIX = 'QP'; // Quick Park prefix
 const ID_START = 1; // Starting number
 

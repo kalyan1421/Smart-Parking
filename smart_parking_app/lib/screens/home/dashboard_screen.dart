@@ -12,14 +12,14 @@ import 'package:smart_parking_app/providers/booking_provider.dart';
 import 'package:smart_parking_app/providers/location_provider.dart';
 import 'package:smart_parking_app/providers/parking_provider.dart';
 import 'package:smart_parking_app/providers/traffic_provider.dart';
-import 'package:smart_parking_app/screens/parking/id_generator.dart';
 import 'package:smart_parking_app/screens/parking/parking_directions_screen.dart';
-import 'package:smart_parking_app/services/pdf_service.dart';
 import 'package:smart_parking_app/services/weather_service.dart';
 import 'package:smart_parking_app/widgets/common/loading_indicator.dart';
 import 'package:intl/intl.dart';
 
 class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({super.key});
+
   @override
   _DashboardScreenState createState() => _DashboardScreenState();
 }
@@ -37,7 +37,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    // Defer data loading to after the build phase
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadData();
+      }
+    });
   }
   
   @override
@@ -47,55 +52,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
   
   Future<void> _loadData() async {
+    if (!mounted) return;
+    
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+    final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
+    final parkingProvider = Provider.of<ParkingProvider>(context, listen: false);
+    final trafficProvider = Provider.of<TrafficProvider>(context, listen: false);
+    
+    // Initialize location if needed
+    if (!locationProvider.hasLocation) {
+      await locationProvider.getCurrentLocation();
+    }
+    
+    if (!mounted) return;
+    
+    // Initialize traffic overlay
+    if (!trafficProvider.isOverlaySetup) {
+      await Future.microtask(() => trafficProvider.initializeTrafficOverlay());
+    }
+    
+    if (!mounted) return;
+    
+    // Load active bookings for user
+    if (authProvider.currentUser != null) {
+      await bookingProvider.loadActiveBookings(authProvider.currentUser!.id);
+    }
+    
+    if (!mounted) return;
+    
+    // Load nearby parking spots
+    if (locationProvider.hasLocation) {
+      await parkingProvider.findNearbyParkingSpots(
+        locationProvider.currentLocation!.latitude,
+        locationProvider.currentLocation!.longitude,
+        radius: AppConfig.defaultSearchRadius
+      );
+    }
+    
+    if (!mounted) return;
+    
+    // Load traffic data
+    if (locationProvider.hasLocation) {
+      await trafficProvider.loadTrafficData(
+        locationProvider.currentLocation!.latitude,
+        locationProvider.currentLocation!.longitude,
+        2.0 // 2 km radius
+      );
+      
+      if (!mounted) return;
+      
+      // Create traffic hotspots visualization
+      _createTrafficHotspots(trafficProvider);
+      
+      // Analyze overall traffic condition
+      _analyzeTrafficCondition(trafficProvider);
+      
+      // Load weather data
+      _loadWeather(locationProvider.currentLocation!.latitude, locationProvider.currentLocation!.longitude);
+    }
+    
     if (mounted) {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final locationProvider = Provider.of<LocationProvider>(context, listen: false);
-      final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
-      final parkingProvider = Provider.of<ParkingProvider>(context, listen: false);
-      final trafficProvider = Provider.of<TrafficProvider>(context, listen: false);
-      
-      // Initialize location if needed
-      if (!locationProvider.hasLocation) {
-        await locationProvider.getCurrentLocation();
-      }
-      
-      // Initialize traffic overlay
-      if (!trafficProvider.isOverlaySetup) {
-        await Future.microtask(() => trafficProvider.initializeTrafficOverlay());
-      }
-      
-      // Load active bookings for user
-      if (authProvider.currentUser != null) {
-        await bookingProvider.loadActiveBookings(authProvider.currentUser!.id);
-      }
-      
-      // Load nearby parking spots
-      if (locationProvider.hasLocation) {
-        await parkingProvider.findNearbyParkingSpots(
-          locationProvider.currentLocation!.latitude,
-          locationProvider.currentLocation!.longitude,
-          radius: AppConfig.defaultSearchRadius
-        );
-      }
-      
-      // Load traffic data
-      if (locationProvider.hasLocation) {
-        await trafficProvider.loadTrafficData(
-          locationProvider.currentLocation!.latitude,
-          locationProvider.currentLocation!.longitude,
-          2.0 // 2 km radius
-        );
-        
-        // Create traffic hotspots visualization
-        _createTrafficHotspots(trafficProvider);
-        
-        // Analyze overall traffic condition
-        _analyzeTrafficCondition(trafficProvider);
-        
-        // Load weather data
-        _loadWeather(locationProvider.currentLocation!.latitude, locationProvider.currentLocation!.longitude);
-      }
-      
       setState(() {
         _isInitialized = true;
       });
@@ -141,35 +158,96 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ));
     }
     
-    setState(() {
-      _trafficHotspots = hotspots;
-    });
-  }
-  
-  void _analyzeTrafficCondition(TrafficProvider trafficProvider) {
-    // ... (rest of the method)
-  }
-
-  Future<void> _loadWeather(double lat, double lon) async {
-    setState(() {
-      _isLoadingWeather = true;
-    });
-    try {
-      final weatherService = WeatherService();
-      final data = await weatherService.getCurrentWeather(lat, lon);
+    if (mounted) {
       setState(() {
-        _weatherData = data;
-        _isLoadingWeather = false;
-      });
-    } catch (e) {
-      print('Error loading weather: $e');
-      setState(() {
-        _isLoadingWeather = false;
+        _trafficHotspots = hotspots;
       });
     }
   }
   
+  void _analyzeTrafficCondition(TrafficProvider trafficProvider) {
+    // Analyze traffic and set condition
+    if (!mounted) return;
+    
+    String condition = 'Unknown';
+    Color color = Colors.grey;
+    
+    if (trafficProvider.trafficBots.isEmpty) {
+      condition = 'Normal';
+      color = Colors.green;
+    } else {
+      int severeCount = 0;
+      int highCount = 0;
+      int mediumCount = 0;
+      
+      for (final bot in trafficProvider.trafficBots) {
+        switch (bot.trafficLevel) {
+          case TrafficLevel.severe:
+            severeCount++;
+            break;
+          case TrafficLevel.high:
+            highCount++;
+            break;
+          case TrafficLevel.medium:
+            mediumCount++;
+            break;
+          default:
+            break;
+        }
+      }
+      
+      if (severeCount > 0) {
+        condition = 'Severe';
+        color = Colors.purple;
+      } else if (highCount > 2) {
+        condition = 'Heavy';
+        color = Colors.red;
+      } else if (highCount > 0 || mediumCount > 2) {
+        condition = 'Moderate';
+        color = Colors.orange;
+      } else {
+        condition = 'Light';
+        color = Colors.green;
+      }
+    }
+    
+    if (mounted) {
+      setState(() {
+        _trafficCondition = condition;
+        _trafficColor = color;
+      });
+    }
+  }
+
+  Future<void> _loadWeather(double lat, double lon) async {
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoadingWeather = true;
+    });
+    
+    try {
+      final weatherService = WeatherService();
+      final data = await weatherService.getCurrentWeather(lat, lon);
+      if (mounted) {
+        setState(() {
+          _weatherData = data;
+          _isLoadingWeather = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading weather: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingWeather = false;
+        });
+      }
+    }
+  }
+  
   void _onMapCreated(GoogleMapController controller) {
+    if (!mounted) return;
+    
     setState(() {
       _mapController = controller;
     });
@@ -193,6 +271,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
   
   void _addMarkersToMap() {
+    if (!mounted) return;
+    
     final locationProvider = Provider.of<LocationProvider>(context, listen: false);
     final parkingProvider = Provider.of<ParkingProvider>(context, listen: false);
     final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
@@ -202,13 +282,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Add user location marker
     if (locationProvider.hasLocation) {
       markers.add(Marker(
-        markerId: MarkerId('user_location'),
+        markerId: const MarkerId('user_location'),
         position: LatLng(
           locationProvider.currentLocation!.latitude,
           locationProvider.currentLocation!.longitude
         ),
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-        infoWindow: InfoWindow(title: 'Your Location'),
+        infoWindow: const InfoWindow(title: 'Your Location'),
       ));
     }
     
@@ -290,7 +370,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -300,7 +380,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Expanded(
                   child: Text(
                     booking.parkingSpotName,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
@@ -309,12 +389,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: Colors.green.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(
+                  child: const Text(
                     'ACTIVE',
                     style: TextStyle(
                       color: Colors.green,
@@ -325,11 +405,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                SizedBox(width: 4),
+                const SizedBox(width: 4),
                 Text(
                   timeRemaining,
                   style: TextStyle(
@@ -339,18 +419,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-            SizedBox(height: 6),
+            const SizedBox(height: 6),
             Row(
               children: [
                 Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                SizedBox(width: 4),
+                const SizedBox(width: 4),
                 Text(
                   '${DateFormat('MMM d').format(booking.startTime)} • ${DateFormat('h:mm a').format(booking.startTime)} - ${DateFormat('h:mm a').format(booking.endTime)}',
                   style: TextStyle(color: Colors.grey[600]),
                 ),
               ],
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
@@ -365,8 +445,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       );
                     },
-                    icon: Icon(Icons.directions),
-                    label: Text('DIRECTIONS'),
+                    icon: const Icon(Icons.directions),
+                    label: const Text('DIRECTIONS'),
                     style: OutlinedButton.styleFrom(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -374,14 +454,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pushNamed(context, AppRoutes.bookingHistory);
                     },
-                    icon: Icon(Icons.visibility),
-                    label: Text('DETAILS'),
+                    icon: const Icon(Icons.visibility),
+                    label: const Text('DETAILS'),
                     style: ElevatedButton.styleFrom(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -417,7 +497,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       trailing: Container(
         width: 40,
-        padding: EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(
           color: spot.availableSpots > 0 ? Colors.green : Colors.red,
           borderRadius: BorderRadius.circular(4),
@@ -425,7 +505,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Text(
           spot.availableSpots > 0 ? 'OPEN' : 'FULL',
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
             fontSize: 10,
@@ -455,18 +535,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     
     if (!_isInitialized || !locationProvider.hasLocation) {
-      return Center(
+      return const Center(
         child: LoadingIndicator(),
       );
     }
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('QuickPark'),
+        title: const Text('QuickPark'),
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             onPressed: _loadData,
             tooltip: 'Refresh',
           ),
@@ -475,12 +555,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: SingleChildScrollView(
-          physics: AlwaysScrollableScrollPhysics(),
+          physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Map section
-              Container(
+              SizedBox(
                 height: 200,
                 child: Stack(
                   children: [
@@ -508,10 +588,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         onPressed: () {
                           Navigator.pushNamed(context, AppRoutes.map);
                         },
-                        child: Icon(Icons.fullscreen),
                         tooltip: 'Open Map',
                         backgroundColor: Colors.white,
                         foregroundColor: Theme.of(context).primaryColor,
+                        child: const Icon(Icons.fullscreen),
                       ),
                     ),
                   ],
@@ -544,12 +624,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  SizedBox(height: 8),
+                                  const SizedBox(height: 8),
                                   if (_weatherData != null)
                                     Row(
                                       children: [
                                         Image.network(_weatherData!.iconUrl, width: 24, height: 24),
-                                        SizedBox(width: 4),
+                                        const SizedBox(width: 4),
                                         Text(
                                           '${_weatherData!.tempC.toStringAsFixed(1)}°C - ${_weatherData!.conditionText}',
                                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -560,7 +640,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       ],
                                     )
                                   else if (_isLoadingWeather)
-                                    SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                    const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
                                   else
                                     Text(
                                       'Find and reserve parking spots easily.',
@@ -576,7 +656,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 authProvider.currentUser?.displayName.isNotEmpty == true
                                     ? authProvider.currentUser!.displayName[0].toUpperCase()
                                     : 'U',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 24,
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -588,7 +668,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
                     
                     // Traffic status section
                     Card(
@@ -601,14 +681,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               'Current Traffic',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
                               ),
                             ),
-                            SizedBox(height: 12),
+                            const SizedBox(height: 12),
                             Row(
                               children: [
                                 Icon(
@@ -616,7 +696,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   color: _trafficColor,
                                   size: 32,
                                 ),
-                                SizedBox(width: 12),
+                                const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -629,7 +709,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           color: _trafficColor,
                                         ),
                                       ),
-                                      SizedBox(height: 4),
+                                      const SizedBox(height: 4),
                                       Text(
                                         'Based on real-time traffic data in your area',
                                         style: TextStyle(
@@ -654,7 +734,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
                     
                     // Active bookings section
                     Row(
@@ -671,16 +751,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             onPressed: () {
                               Navigator.pushNamed(context, AppRoutes.bookingHistory);
                             },
-                            child: Text('View All'),
+                            child: const Text('View All'),
                           ),
                       ],
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     
                     if (bookingProvider.isLoading)
-                      Center(
+                      const Center(
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16.0),
+                          padding: EdgeInsets.symmetric(vertical: 16.0),
                           child: CircularProgressIndicator(),
                         ),
                       )
@@ -700,7 +780,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 size: 48,
                                 color: Colors.grey[400],
                               ),
-                              SizedBox(height: 12),
+                              const SizedBox(height: 12),
                               Text(
                                 'No active bookings',
                                 style: TextStyle(
@@ -708,7 +788,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   color: Colors.grey[600],
                                 ),
                               ),
-                              SizedBox(height: 4),
+                              const SizedBox(height: 4),
                               Text(
                                 'Book a parking spot for your next trip',
                                 style: TextStyle(
@@ -717,15 +797,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                                 textAlign: TextAlign.center,
                               ),
-                              SizedBox(height: 16),
+                              const SizedBox(height: 16),
                               ElevatedButton.icon(
                                 onPressed: () {
                                   Navigator.pushNamed(context, AppRoutes.parkingmap);
                                 },
-                                icon: Icon(Icons.search),
-                                label: Text('FIND PARKING'),
+                                icon: const Icon(Icons.search),
+                                label: const Text('FIND PARKING'),
                                 style: ElevatedButton.styleFrom(
-                                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                                 ),
                               ),
                             ],
@@ -738,9 +818,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           padding: const EdgeInsets.only(bottom: 8.0),
                           child: _buildActiveBookingCard(booking),
                         )
-                      ).toList(),
+                      ),
                     
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
                     
                     // Nearby parking section
                     Row(
@@ -756,16 +836,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           onPressed: () {
                             Navigator.pushNamed(context, AppRoutes.parkingList);
                           },
-                          child: Text('See All'),
+                          child: const Text('See All'),
                         ),
                       ],
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     
                     if (parkingProvider.isLoading)
-                      Center(
+                      const Center(
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16.0),
+                          padding: EdgeInsets.symmetric(vertical: 16.0),
                           child: CircularProgressIndicator(),
                         ),
                       )
@@ -796,22 +876,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             ...parkingProvider.nearbyParkingSpots.take(3).map((spot) => 
                               _buildNearbyParkingItem(spot)
-                            ).toList(),
-                            Divider(height: 1),
+                            ),
+                            const Divider(height: 1),
                             TextButton(
                               onPressed: () {
                                 Navigator.pushNamed(context, AppRoutes.parkingList);
                               },
-                              child: Text('VIEW ALL PARKING SPOTS'),
                               style: TextButton.styleFrom(
-                                padding: EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
                               ),
+                              child: const Text('VIEW ALL PARKING SPOTS'),
                             ),
                           ],
                         ),
                       ),
                     
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
                     
                     // Quick actions
                     Text(
@@ -820,7 +900,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     
                     Wrap(
                       spacing: 12,
@@ -842,7 +922,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           () {
                             Navigator.pushNamed(context, AppRoutes.bookingHistory);
                           },
-                          badge: bookingProvider.activeBookings.length > 0 ? 
+                          badge: bookingProvider.activeBookings.isNotEmpty ? 
                             bookingProvider.activeBookings.length.toString() : null,
                         ),
                         _buildQuickActionCard(
@@ -872,7 +952,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ],
                     ),
                     
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -903,7 +983,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
               blurRadius: 5,
-              offset: Offset(0, 2),
+              offset: const Offset(0, 2),
             ),
           ],
         ),
@@ -917,11 +997,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   size: 36,
                   color: Theme.of(context).primaryColor,
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(
                   label,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -932,14 +1012,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 top: 8,
                 right: 8,
                 child: Container(
-                  padding: EdgeInsets.all(6),
-                  decoration: BoxDecoration(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
                     color: Colors.red,
                     shape: BoxShape.circle,
                   ),
                   child: Text(
                     badge,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,

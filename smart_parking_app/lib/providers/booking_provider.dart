@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/database/database_service.dart';
 import '../models/booking.dart';
@@ -25,6 +26,9 @@ class BookingProvider with ChangeNotifier {
   
   // Debouncing for notifications
   Timer? _notifyDebounce;
+  
+  // Prevent notifyListeners during build
+  bool _isNotifying = false;
 
   BookingProvider(this._bookingRepository);
   
@@ -67,6 +71,21 @@ class BookingProvider with ChangeNotifier {
   }
   
   // ═══════════════════════════════════════════════════════════════════════════
+  // SAFE NOTIFY LISTENERS (prevents build-time notifications)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  void _safeNotifyListeners() {
+    if (_isNotifying) return;
+    _isNotifying = true;
+    
+    // Use addPostFrameCallback to defer notifications
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _isNotifying = false;
+      notifyListeners();
+    });
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════════════
   // REAL-TIME STREAMING
   // ═══════════════════════════════════════════════════════════════════════════
   
@@ -106,7 +125,10 @@ class BookingProvider with ChangeNotifier {
   // ═══════════════════════════════════════════════════════════════════════════
   
   Future<void> loadUserBookings(String userId) async {
-    _setLoading(true);
+    _isLoading = true;
+    // Don't notify immediately - use debounced approach
+    _notifyListenersDebounced();
+    
     try {
       final querySnapshot = await DatabaseService.collection('bookings')
           .where('userId', isEqualTo: userId)
@@ -121,9 +143,10 @@ class BookingProvider with ChangeNotifier {
       _error = null;
     } catch (e) {
       _error = 'Failed to load bookings: $e';
-      print('❌ Error loadUserBookings: $e');
+      debugPrint('❌ Error loadUserBookings: $e');
     } finally {
-      _setLoading(false);
+      _isLoading = false;
+      _notifyListenersDebounced();
     }
   }
   
@@ -142,7 +165,8 @@ class BookingProvider with ChangeNotifier {
     String? vehicleId,
     String? notes,
   }) async {
-    _setLoading(true);
+    _isLoading = true;
+    _safeNotifyListeners();
     
     try {
       // Use atomic booking creation from DatabaseService
@@ -158,7 +182,8 @@ class BookingProvider with ChangeNotifier {
       
       if (!result.isSuccess) {
         _error = result.error;
-        _setLoading(false);
+        _isLoading = false;
+        _safeNotifyListeners();
         return null;
       }
       
@@ -169,7 +194,8 @@ class BookingProvider with ChangeNotifier {
       
       if (!bookingDoc.exists) {
         _error = 'Booking created but not found';
-        _setLoading(false);
+        _isLoading = false;
+        _safeNotifyListeners();
         return null;
       }
       
@@ -183,16 +209,16 @@ class BookingProvider with ChangeNotifier {
       await _showBookingNotification(createdBooking, parkingSpot.name);
       
       _error = null;
-      _setLoading(false);
-      notifyListeners();
+      _isLoading = false;
+      _safeNotifyListeners();
       
       return createdBooking;
       
     } catch (e) {
       _error = 'Failed to create booking: $e';
-      print('❌ Error createBooking: $e');
-      _setLoading(false);
-      notifyListeners();
+      debugPrint('❌ Error createBooking: $e');
+      _isLoading = false;
+      _safeNotifyListeners();
       return null;
     }
   }
@@ -217,7 +243,7 @@ class BookingProvider with ChangeNotifier {
         );
       }
     } catch (e) {
-      print('⚠️ Failed to show notification: $e');
+      debugPrint('⚠️ Failed to show notification: $e');
     }
   }
   
@@ -228,7 +254,8 @@ class BookingProvider with ChangeNotifier {
   /// Cancel a booking using atomic transaction
   /// Ensures slot count is properly released
   Future<bool> cancelBooking(String bookingId) async {
-    _setLoading(true);
+    _isLoading = true;
+    _safeNotifyListeners();
     
     try {
       final result = await DatabaseService.cancelBookingAtomic(
@@ -238,7 +265,8 @@ class BookingProvider with ChangeNotifier {
       
       if (!result.isSuccess) {
         _error = result.error;
-        _setLoading(false);
+        _isLoading = false;
+        _safeNotifyListeners();
         return false;
       }
       
@@ -253,15 +281,15 @@ class BookingProvider with ChangeNotifier {
       }
       
       _error = null;
-      _setLoading(false);
-      notifyListeners();
+      _isLoading = false;
+      _safeNotifyListeners();
       return true;
       
     } catch (e) {
       _error = 'Failed to cancel booking: $e';
-      print('❌ Error cancelBooking: $e');
-      _setLoading(false);
-      notifyListeners();
+      debugPrint('❌ Error cancelBooking: $e');
+      _isLoading = false;
+      _safeNotifyListeners();
       return false;
     }
   }
@@ -288,12 +316,12 @@ class BookingProvider with ChangeNotifier {
         );
       }
       
-      notifyListeners();
+      _safeNotifyListeners();
       return true;
     } catch (e) {
       _error = 'Failed to check in: $e';
-      print('❌ Error checkIn: $e');
-      notifyListeners();
+      debugPrint('❌ Error checkIn: $e');
+      _safeNotifyListeners();
       return false;
     }
   }
@@ -313,7 +341,7 @@ class BookingProvider with ChangeNotifier {
             updatedAt: DateTime.now(),
           );
         }
-        notifyListeners();
+        _safeNotifyListeners();
       } else {
         _error = 'Failed to check out';
       }
@@ -321,8 +349,8 @@ class BookingProvider with ChangeNotifier {
       return success;
     } catch (e) {
       _error = 'Failed to check out: $e';
-      print('❌ Error checkOut: $e');
-      notifyListeners();
+      debugPrint('❌ Error checkOut: $e');
+      _safeNotifyListeners();
       return false;
     }
   }
@@ -349,7 +377,7 @@ class BookingProvider with ChangeNotifier {
       return null;
     } catch (e) {
       _error = 'Failed to get booking: $e';
-      print('❌ Error getBookingById: $e');
+      debugPrint('❌ Error getBookingById: $e');
       return null;
     }
   }
@@ -385,7 +413,7 @@ class BookingProvider with ChangeNotifier {
       // Available if overlapping bookings < total spots
       return overlappingCount < totalSpots;
     } catch (e) {
-      print('❌ Error checking availability: $e');
+      debugPrint('❌ Error checking availability: $e');
       return false;
     }
   }
@@ -424,12 +452,12 @@ class BookingProvider with ChangeNotifier {
         );
       }
       
-      notifyListeners();
+      _safeNotifyListeners();
       return true;
     } catch (e) {
       _error = 'Failed to add feedback: $e';
-      print('❌ Error addFeedback: $e');
-      notifyListeners();
+      debugPrint('❌ Error addFeedback: $e');
+      _safeNotifyListeners();
       return false;
     }
   }
@@ -453,7 +481,7 @@ class BookingProvider with ChangeNotifier {
       );
     } catch (e) {
       _error = 'Failed to generate receipt: $e';
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -472,7 +500,7 @@ class BookingProvider with ChangeNotifier {
       );
     } catch (e) {
       _error = 'Failed to complete booking with receipt: $e';
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -497,7 +525,7 @@ class BookingProvider with ChangeNotifier {
       }
     } catch (e) {
       _error = 'Failed to cancel booking with receipt: $e';
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -512,7 +540,7 @@ class BookingProvider with ChangeNotifier {
       );
     } catch (e) {
       _error = 'Failed to generate batch receipts: $e';
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -533,26 +561,21 @@ class BookingProvider with ChangeNotifier {
   // HELPERS
   // ═══════════════════════════════════════════════════════════════════════════
   
-  void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
-  }
-  
   void _notifyListenersDebounced() {
     _notifyDebounce?.cancel();
-    _notifyDebounce = Timer(const Duration(milliseconds: 16), () {
-      notifyListeners();
+    _notifyDebounce = Timer(const Duration(milliseconds: 50), () {
+      _safeNotifyListeners();
     });
   }
   
   void clearError() {
     _error = null;
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   void setCurrentBooking(Booking? booking) {
     _currentBooking = booking;
-    notifyListeners();
+    _safeNotifyListeners();
   }
   
   // Backward compatibility

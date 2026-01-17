@@ -8,6 +8,8 @@ import 'package:smart_parking_app/screens/profile/booking_history_screen.dart';
 import 'package:smart_parking_app/widgets/common/loading_indicator.dart';
 
 class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({super.key});
+
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
 }
@@ -25,7 +27,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _initializeFields();
-    _loadBookingData();
+    // Defer data loading to after the build phase
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadBookingData();
+      }
+    });
   }
   
   @override
@@ -48,14 +55,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
   
   Future<void> _loadBookingData() async {
+    if (!mounted) return;
+    
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
     
     if (authProvider.currentUser != null) {
       await bookingProvider.loadActiveBookings(authProvider.currentUser!.id);
-      setState(() {
-        _activeBookingsCount = bookingProvider.activeBookings.length;
-      });
+      
+      if (mounted) {
+        setState(() {
+          _activeBookingsCount = bookingProvider.activeBookings.length;
+        });
+      }
     }
   }
   
@@ -76,7 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
       
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Profile updated successfully'),
           backgroundColor: Colors.green,
         ),
@@ -88,16 +100,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Logout'),
-        content: Text('Are you sure you want to logout?'),
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Logout'),
+            child: const Text('Logout'),
           ),
         ],
       ),
@@ -121,22 +133,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => BookingHistoryScreen(),
+        builder: (context) =>  BookingHistoryScreen(),
       ),
-    ).then((_) => _loadBookingData());
+    ).then((_) {
+      if (mounted) {
+        _loadBookingData();
+      }
+    });
   }
   
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    final bookingProvider = Provider.of<BookingProvider>(context);
     
     if (authProvider.currentUser == null) {
       return Scaffold(
         appBar: AppBar(
-          title: Text('Profile'),
+          title: const Text('Profile'),
         ),
-        body: Center(
+        body: const Center(
           child: LoadingIndicator(),
         ),
       );
@@ -144,17 +159,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('Profile'),
+        title: const Text('Profile'),
         automaticallyImplyLeading: false,
         actions: [
           if (_isEditing)
             IconButton(
-              icon: Icon(Icons.save),
+              icon: const Icon(Icons.save),
               onPressed: _updateProfile,
             )
           else
             IconButton(
-              icon: Icon(Icons.edit),
+              icon: const Icon(Icons.edit),
               onPressed: () {
                 setState(() {
                   _isEditing = true;
@@ -166,7 +181,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: RefreshIndicator(
         onRefresh: _loadBookingData,
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -181,22 +196,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         authProvider.currentUser!.displayName.isNotEmpty
                             ? authProvider.currentUser!.displayName[0].toUpperCase()
                             : authProvider.currentUser!.email[0].toUpperCase(),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 40,
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Text(
                       authProvider.currentUser!.email,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
                       authProvider.currentUser!.email,
                       style: TextStyle(
@@ -208,12 +223,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               
-              SizedBox(height: 32),
+              const SizedBox(height: 32),
               
               // Active bookings summary card
               if (_activeBookingsCount > 0)
                 Card(
-                  margin: EdgeInsets.only(bottom: 24),
+                  margin: const EdgeInsets.only(bottom: 24),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -222,7 +237,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onTap: _navigateToBookingHistory,
                     borderRadius: BorderRadius.circular(12),
                     child: Padding(
-                      padding: EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(16),
                       child: Row(
                         children: [
                           Container(
@@ -232,25 +247,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               color: Colors.green.withOpacity(0.1),
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(
+                            child: const Icon(
                               Icons.directions_car,
                               color: Colors.green,
                               size: 28,
                             ),
                           ),
-                          SizedBox(width: 16),
+                          const SizedBox(width: 16),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
+                                const Text(
                                   'Active Bookings',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
                                   ),
                                 ),
-                                SizedBox(height: 4),
+                                const SizedBox(height: 4),
                                 Text(
                                   _activeBookingsCount == 1
                                       ? 'You have 1 active parking booking'
@@ -262,7 +277,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ],
                             ),
                           ),
-                          Icon(
+                          const Icon(
                             Icons.arrow_forward_ios,
                             size: 16,
                             color: Colors.grey,
@@ -279,19 +294,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Personal Information',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     
                     // Name field
                     TextFormField(
                       controller: _nameController,
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         labelText: 'Full Name',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.person),
@@ -305,12 +320,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       },
                     ),
                     
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     
                     // Phone number field
                     TextFormField(
                       controller: _phoneController,
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         labelText: 'Phone Number',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.phone),
@@ -325,12 +340,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       },
                     ),
                     
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     
                     // City field
                     TextFormField(
                       controller: _cityController,
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         labelText: 'City',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.location_city),
@@ -338,12 +353,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       enabled: _isEditing,
                     ),
                     
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     
                     // Emergency Contact field
                     TextFormField(
                       controller: _emergencyContactController,
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         labelText: 'Emergency Contact',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.contact_phone),
@@ -355,20 +370,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               
-              SizedBox(height: 32),
+              const SizedBox(height: 32),
               
               // Action buttons
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Account Settings',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   _buildSettingItem(
                     Icons.vpn_key,
                     'Change Password',
@@ -382,14 +397,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _navigateToBookingHistory,
                     trailingWidget: _activeBookingsCount > 0 
                         ? Container(
-                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.green,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
                               '$_activeBookingsCount',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
@@ -415,12 +430,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       },
                       trailingWidget: authProvider.currentUser?.partnerRequestStatus == 'pending'
                           ? Container(
-                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
                                 color: Colors.orange,
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: Text(
+                              child: const Text(
                                 'Pending',
                                 style: TextStyle(
                                   color: Colors.white,
@@ -445,7 +460,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       // TODO: Navigate to help screen
                     },
                   ),
-                  Divider(),
+                  const Divider(),
                   _buildSettingItem(
                     Icons.logout,
                     'Logout',
@@ -469,7 +484,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Row(
           children: [
             Icon(icon, color: color ?? Colors.grey[700]),
-            SizedBox(width: 16),
+            const SizedBox(width: 16),
             Text(
               title,
               style: TextStyle(
@@ -477,11 +492,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: color ?? Colors.black,
               ),
             ),
-            Spacer(),
+            const Spacer(),
             if (trailingWidget != null) 
               trailingWidget
             else
-              Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+              const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
           ],
         ),
       ),

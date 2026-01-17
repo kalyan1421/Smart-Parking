@@ -46,6 +46,7 @@ dist/
 GoogleService-Info.plist
 firebase-debug.log
 firestore-debug.log
+serviceAccountKey.json
 
 # Logs
 *.log
