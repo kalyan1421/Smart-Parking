@@ -1,0 +1,220 @@
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// SMART PARKING - UNIFIED FIREBASE STORAGE SECURITY RULES
+// Production-grade rules for Customer App + Admin App
+// Covers all file upload scenarios with proper validation
+// ═══════════════════════════════════════════════════════════════════════════════════════
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // HELPER FUNCTIONS
+    // ─────────────────────────────────────────────────────────────────────────────────
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user owns this resource
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Validate image file (JPEG, PNG, GIF, WebP)
+    function isValidImage() {
+      return request.resource.contentType.matches('image/(jpeg|jpg|png|gif|webp)') &&
+             request.resource.size < 10 * 1024 * 1024; // 10MB max
+    }
+    
+    // Validate small image (for thumbnails/profiles)
+    function isValidSmallImage() {
+      return request.resource.contentType.matches('image/(jpeg|jpg|png|gif|webp)') &&
+             request.resource.size < 2 * 1024 * 1024; // 2MB max
+    }
+    
+    // Validate document file (PDF, images)
+    function isValidDocument() {
+      return request.resource.contentType in ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'] &&
+             request.resource.size < 5 * 1024 * 1024; // 5MB max
+    }
+    
+    // Validate PDF only
+    function isValidPDF() {
+      return request.resource.contentType == 'application/pdf' &&
+             request.resource.size < 10 * 1024 * 1024; // 10MB max
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // USER PROFILE IMAGES
+    // ─────────────────────────────────────────────────────────────────────────────────
+    match /users/{userId}/profile/{fileName} {
+      // Users can upload their own profile images
+      allow write: if isOwner(userId) && isValidSmallImage();
+      
+      // All authenticated users can view profile images
+      allow read: if isAuthenticated();
+      
+      // Users can delete their own profile images
+      allow delete: if isOwner(userId);
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // USER DOCUMENTS (ID, License, etc.)
+    // ─────────────────────────────────────────────────────────────────────────────────
+    match /users/{userId}/documents/{category}/{fileName} {
+      // Users can upload their own documents
+      allow write: if isOwner(userId) && isValidDocument();
+      
+      // Only the user and admins can read their documents
+      allow read: if isOwner(userId);
+      
+      // Users can delete their own documents
+      allow delete: if isOwner(userId);
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // VEHICLE IMAGES
+    // ─────────────────────────────────────────────────────────────────────────────────
+    match /vehicles/{vehicleId}/images/{fileName} {
+      // Authenticated users can upload vehicle images
+      allow write: if isAuthenticated() && isValidImage();
+      
+      // All authenticated users can view vehicle images
+      allow read: if isAuthenticated();
+      
+      // Authenticated users can delete vehicle images
+      allow delete: if isAuthenticated();
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // PARKING SPOT IMAGES
+    // ─────────────────────────────────────────────────────────────────────────────────
+    match /parkingSpots/{spotId}/images/{fileName} {
+      // Authenticated users (operators/admins) can upload
+      allow write: if isAuthenticated() && isValidImage();
+      
+      // All authenticated users can view parking images
+      allow read: if isAuthenticated();
+      
+      // Authenticated users can delete
+      allow delete: if isAuthenticated();
+    }
+    
+    // Alternate path for parking spots
+    match /parking_spots/{spotId}/images/{fileName} {
+      allow write: if isAuthenticated() && isValidImage();
+      allow read: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // BOOKING RECEIPTS & DOCUMENTS
+    // ─────────────────────────────────────────────────────────────────────────────────
+    match /bookings/{bookingId}/receipts/{fileName} {
+      // System can write receipts
+      allow write: if isAuthenticated() && isValidPDF();
+      
+      // Authenticated users can read receipts
+      allow read: if isAuthenticated();
+    }
+    
+    match /bookings/{bookingId}/documents/{fileName} {
+      // System can write documents
+      allow write: if isAuthenticated() && isValidDocument();
+      
+      // Authenticated users can read documents
+      allow read: if isAuthenticated();
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // PARTNER REQUEST DOCUMENTS
+    // ─────────────────────────────────────────────────────────────────────────────────
+    match /partnerRequests/{requestId}/documents/{fileName} {
+      // Users can upload partner request documents
+      allow write: if isAuthenticated() && isValidDocument();
+      
+      // Authenticated users can read
+      allow read: if isAuthenticated();
+      
+      // Users can delete their documents
+      allow delete: if isAuthenticated();
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // REPORT ATTACHMENTS
+    // ─────────────────────────────────────────────────────────────────────────────────
+    match /reports/{reportId}/attachments/{fileName} {
+      // Users can upload report attachments
+      allow write: if isAuthenticated() && (isValidImage() || isValidDocument());
+      
+      // Authenticated users can read
+      allow read: if isAuthenticated();
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // SUPPORT CHAT ATTACHMENTS
+    // ─────────────────────────────────────────────────────────────────────────────────
+    match /supportChats/{chatId}/attachments/{fileName} {
+      // Users can upload chat attachments
+      allow write: if isAuthenticated() && (isValidImage() || isValidDocument());
+      
+      // Authenticated users can read
+      allow read: if isAuthenticated();
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // PUBLIC ASSETS (App icons, etc.)
+    // ─────────────────────────────────────────────────────────────────────────────────
+    match /public/{fileName} {
+      // Anyone can read public assets
+      allow read: if true;
+      
+      // Only authenticated users can upload public files
+      allow write: if isAuthenticated() && isValidImage();
+    }
+    
+    match /public/{folder}/{fileName} {
+      // Anyone can read public assets
+      allow read: if true;
+      
+      // Only authenticated users can upload
+      allow write: if isAuthenticated() && isValidImage();
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // TEMPORARY UPLOADS
+    // ─────────────────────────────────────────────────────────────────────────────────
+    match /temp/{userId}/{fileName} {
+      // Users can manage their own temporary files
+      allow read, write, delete: if isOwner(userId) && 
+                                    (isValidImage() || isValidDocument());
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // ADMIN UPLOADS
+    // ─────────────────────────────────────────────────────────────────────────────────
+    match /admin/{path=**} {
+      // Only authenticated users (admin app users)
+      allow read, write: if isAuthenticated();
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // ANALYTICS & REPORTS (Backend Only)
+    // ─────────────────────────────────────────────────────────────────────────────────
+    match /analytics/{document=**} {
+      // Only backend services - no client access
+      allow read, write: if false;
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────────────────
+    // BACKUPS (Backend Only)
+    // ─────────────────────────────────────────────────────────────────────────────────
+    match /backups/{document=**} {
+      // Only backend services - no client access
+      allow read, write: if false;
+    }
+  }
+}

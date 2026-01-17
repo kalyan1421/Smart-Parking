@@ -9,6 +9,7 @@ import 'package:smart_parking_app/screens/parking/parking_map_screen.dart';
 import 'package:smart_parking_app/screens/parking/parking_list_screen.dart';
 import 'package:smart_parking_app/screens/profile/profile_screen.dart';
 import 'package:smart_parking_app/widgets/common/loading_indicator.dart';
+import 'package:smart_parking_app/screens/maps/map_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,7 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   final List<Widget> _pages = [
     DashboardScreen(),
-    MapScreen(),
+    ParkingMapScreen(),
     ParkingListScreen(),
     ProfileScreen(),
   ];
