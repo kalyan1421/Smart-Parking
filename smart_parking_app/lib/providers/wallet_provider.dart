@@ -43,7 +43,7 @@ class WalletProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> addMoney(String userId, double amount) async {
+  Future<bool> addMoney(String userId, double amount, {PaymentMethod method = PaymentMethod.upi}) async {
     _setLoading(true);
     try {
       await DatabaseService.runTransaction((transaction) async {
@@ -60,8 +60,9 @@ class WalletProvider with ChangeNotifier {
           userId: userId,
           amount: amount,
           type: TransactionType.deposit,
-          description: 'Added money to wallet',
+          description: 'Added money to wallet via ${method.name.toUpperCase()}',
           createdAt: DateTime.now(),
+          paymentMethod: method,
         );
         
         transaction.set(transactionRef, newTransaction.toMap());
@@ -104,6 +105,7 @@ class WalletProvider with ChangeNotifier {
           description: 'Payment for parking booking',
           createdAt: DateTime.now(),
           bookingId: bookingId,
+          paymentMethod: PaymentMethod.wallet,
         );
         
         transaction.set(transactionRef, newTransaction.toMap());

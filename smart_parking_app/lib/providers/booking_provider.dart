@@ -161,7 +161,8 @@ class BookingProvider with ChangeNotifier {
     ParkingSpot parkingSpot,
     DateTime startTime,
     DateTime endTime,
-    double totalPrice, {
+    double totalPrice,
+    String paymentMethod, {
     String? vehicleId,
     String? notes,
   }) async {
@@ -177,6 +178,7 @@ class BookingProvider with ChangeNotifier {
         startTime: startTime,
         endTime: endTime,
         pricePerHour: parkingSpot.pricePerHour,
+        paymentMethod: paymentMethod,
         notes: notes,
       );
       
@@ -297,12 +299,87 @@ class BookingProvider with ChangeNotifier {
   // ═══════════════════════════════════════════════════════════════════════════
   // CHECK-IN / CHECK-OUT
   // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Check-in by QR Code scan
+  Future<bool> checkInByQrCode(String qrCode) async {
+    try {
+      // Find booking by QR code
+      final querySnapshot = await DatabaseService.collection('bookings')
+          .where('qrCode', isEqualTo: qrCode)
+          .where('status', whereIn: ['confirmed', 'pending'])
+          .limit(1)
+          .get();
+      
+      if (querySnapshot.docs.isEmpty) {
+        _error = 'No booking found for this QR code';
+        _safeNotifyListeners();
+        return false;
+      }
+      
+      final bookingDoc = querySnapshot.docs.first;
+      return await checkIn(bookingDoc.id, method: CheckInMethod.qrCode);
+    } catch (e) {
+      _error = 'Failed to check in by QR: $e';
+      debugPrint('❌ Error checkInByQrCode: $e');
+      _safeNotifyListeners();
+      return false;
+    }
+  }
   
-  Future<bool> checkIn(String bookingId) async {
+  /// Check-in by vehicle number plate (ANPR)
+  Future<bool> checkInByNumberPlate(String numberPlate) async {
+    try {
+      // Normalize plate number
+      final normalizedPlate = numberPlate.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+      
+      // Find booking by number plate
+      final querySnapshot = await DatabaseService.collection('bookings')
+          .where('vehicleNumberPlate', isEqualTo: normalizedPlate)
+          .where('status', whereIn: ['confirmed', 'pending'])
+          .limit(1)
+          .get();
+      
+      if (querySnapshot.docs.isEmpty) {
+        _error = 'No booking found for plate: $numberPlate';
+        _safeNotifyListeners();
+        return false;
+      }
+      
+      final bookingDoc = querySnapshot.docs.first;
+      final booking = Booking.fromFirestore(bookingDoc);
+      
+      // Verify booking time (allow 15 min early check-in)
+      final now = DateTime.now();
+      final allowedStart = booking.startTime.subtract(const Duration(minutes: 15));
+      
+      if (now.isBefore(allowedStart)) {
+        _error = 'Too early for check-in. Booking starts at ${booking.startTime}';
+        _safeNotifyListeners();
+        return false;
+      }
+      
+      if (now.isAfter(booking.endTime)) {
+        _error = 'Booking has expired';
+        _safeNotifyListeners();
+        return false;
+      }
+      
+      return await checkIn(bookingDoc.id, method: CheckInMethod.numberPlate);
+    } catch (e) {
+      _error = 'Failed to check in by plate: $e';
+      debugPrint('❌ Error checkInByNumberPlate: $e');
+      _safeNotifyListeners();
+      return false;
+    }
+  }
+  
+  /// Generic check-in method
+  Future<bool> checkIn(String bookingId, {CheckInMethod method = CheckInMethod.manual}) async {
     try {
       await DatabaseService.collection('bookings').doc(bookingId).update({
         'status': BookingStatus.active.name,
         'checkedInAt': FieldValue.serverTimestamp(),
+        'checkInMethod': method.name,
         'updatedAt': FieldValue.serverTimestamp(),
       });
       
@@ -312,6 +389,7 @@ class BookingProvider with ChangeNotifier {
         _bookings[index] = _bookings[index].copyWith(
           status: BookingStatus.active,
           checkedInAt: DateTime.now(),
+          checkInMethod: method,
           updatedAt: DateTime.now(),
         );
       }
@@ -326,19 +404,71 @@ class BookingProvider with ChangeNotifier {
     }
   }
   
-  /// Check out using atomic transaction (releases slot)
-  Future<bool> checkOut(String bookingId) async {
+  /// Check-out by vehicle number plate (ANPR)
+  Future<bool> checkOutByNumberPlate(String numberPlate) async {
     try {
+      final normalizedPlate = numberPlate.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+      
+      final querySnapshot = await DatabaseService.collection('bookings')
+          .where('vehicleNumberPlate', isEqualTo: normalizedPlate)
+          .where('status', isEqualTo: 'active')
+          .limit(1)
+          .get();
+      
+      if (querySnapshot.docs.isEmpty) {
+        _error = 'No active booking found for plate: $numberPlate';
+        _safeNotifyListeners();
+        return false;
+      }
+      
+      return await checkOut(querySnapshot.docs.first.id, method: CheckInMethod.numberPlate);
+    } catch (e) {
+      _error = 'Failed to check out by plate: $e';
+      debugPrint('❌ Error checkOutByNumberPlate: $e');
+      _safeNotifyListeners();
+      return false;
+    }
+  }
+  
+  /// Check out using atomic transaction (releases slot)
+  Future<bool> checkOut(String bookingId, {CheckInMethod method = CheckInMethod.manual}) async {
+    try {
+      // Get booking to calculate overtime if any
+      final bookingDoc = await DatabaseService.collection('bookings').doc(bookingId).get();
+      if (!bookingDoc.exists) {
+        _error = 'Booking not found';
+        return false;
+      }
+      
+      final booking = Booking.fromFirestore(bookingDoc);
+      final now = DateTime.now();
+      
+      // Calculate overtime fee
+      double overtimeFee = 0;
+      if (now.isAfter(booking.endTime)) {
+        final overtimeMinutes = now.difference(booking.endTime).inMinutes;
+        final overtimeHours = (overtimeMinutes / 60).ceil();
+        overtimeFee = overtimeHours * booking.pricePerHour * 1.5; // 1.5x rate for overtime
+      }
+      
       final success = await DatabaseService.checkOutAtomic(bookingId);
       
       if (success) {
+        // Update with checkout details
+        await DatabaseService.collection('bookings').doc(bookingId).update({
+          'checkOutMethod': method.name,
+          'overtimeFee': overtimeFee > 0 ? overtimeFee : null,
+        });
+        
         // Update local booking
         final index = _bookings.indexWhere((b) => b.id == bookingId);
         if (index != -1) {
           _bookings[index] = _bookings[index].copyWith(
             status: BookingStatus.completed,
-            checkedOutAt: DateTime.now(),
-            updatedAt: DateTime.now(),
+            checkedOutAt: now,
+            checkOutMethod: method,
+            overtimeFee: overtimeFee > 0 ? overtimeFee : null,
+            updatedAt: now,
           );
         }
         _safeNotifyListeners();
@@ -352,6 +482,28 @@ class BookingProvider with ChangeNotifier {
       debugPrint('❌ Error checkOut: $e');
       _safeNotifyListeners();
       return false;
+    }
+  }
+  
+  /// Auto-complete expired bookings (call periodically)
+  Future<void> autoCompleteExpiredBookings(String userId) async {
+    try {
+      final now = DateTime.now();
+      
+      // Find active bookings that have passed their end time
+      final expiredBookings = _bookings.where((b) => 
+        b.userId == userId &&
+        b.isActive &&
+        now.isAfter(b.endTime) &&
+        b.autoCompleteEnabled
+      ).toList();
+      
+      for (final booking in expiredBookings) {
+        await checkOut(booking.id, method: CheckInMethod.manual);
+        debugPrint('Auto-completed booking: ${booking.id}');
+      }
+    } catch (e) {
+      debugPrint('❌ Error autoCompleteExpiredBookings: $e');
     }
   }
   

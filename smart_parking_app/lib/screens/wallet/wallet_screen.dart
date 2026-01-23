@@ -6,6 +6,7 @@ import 'package:smart_parking_app/providers/auth_provider.dart';
 import 'package:smart_parking_app/providers/wallet_provider.dart';
 import 'package:smart_parking_app/models/transaction.dart';
 import 'package:intl/intl.dart';
+import 'package:upi_india/upi_india.dart';
 
 class WalletScreen extends StatefulWidget {
   @override
@@ -13,6 +14,8 @@ class WalletScreen extends StatefulWidget {
 }
 
 class _WalletScreenState extends State<WalletScreen> {
+  Future<UpiResponse>? _transaction;
+
   @override
   void initState() {
     super.initState();
@@ -29,14 +32,14 @@ class _WalletScreenState extends State<WalletScreen> {
 
   Future<void> _addMoney() async {
     final TextEditingController _amountController = TextEditingController();
-    String _selectedMethod = 'UPI';
+    PaymentMethod _selectedMethod = PaymentMethod.upi;
     
     await showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           return AlertDialog(
-            title: Text('Add Money'),
+            title: const Text('Add Money'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -46,29 +49,29 @@ class _WalletScreenState extends State<WalletScreen> {
                   decoration: InputDecoration(
                     labelText: 'Amount',
                     prefixText: AppConfig.currencySymbol,
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
-                SizedBox(height: 16),
-                Text('Payment Method', style: TextStyle(fontWeight: FontWeight.bold)),
-                SizedBox(height: 8),
+                const SizedBox(height: 16),
+                const Text('Payment Method', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
                       child: _paymentOption(
                         'UPI', 
                         Icons.qr_code, 
-                        _selectedMethod == 'UPI',
-                        () => setState(() => _selectedMethod = 'UPI'),
+                        _selectedMethod == PaymentMethod.upi,
+                        () => setState(() => _selectedMethod = PaymentMethod.upi),
                       ),
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: _paymentOption(
                         'Card', 
                         Icons.credit_card, 
-                        _selectedMethod == 'Card',
-                        () => setState(() => _selectedMethod = 'Card'),
+                        _selectedMethod == PaymentMethod.card,
+                        () => setState(() => _selectedMethod = PaymentMethod.card),
                       ),
                     ),
                   ],
@@ -78,7 +81,7 @@ class _WalletScreenState extends State<WalletScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text('Cancel'),
+                child: const Text('Cancel'),
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -87,31 +90,36 @@ class _WalletScreenState extends State<WalletScreen> {
                     final authProvider = Provider.of<AuthProvider>(context, listen: false);
                     final walletProvider = Provider.of<WalletProvider>(context, listen: false);
                     
-                    Navigator.pop(context);
-                    
-                    // Simulate payment delay
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Processing $_selectedMethod payment...')),
-                    );
-                    await Future.delayed(Duration(seconds: 2));
-                    
-                    final success = await walletProvider.addMoney(
-                      authProvider.currentUser!.id,
-                      amount,
-                    );
-                    
-                    if (success) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Money added successfully via $_selectedMethod')),
-                      );
+                    if (_selectedMethod == PaymentMethod.upi) {
+                      Navigator.pop(context); // Close the add money dialog
+                      _initiateUpiPayment(authProvider.currentUser!.id, amount);
                     } else {
+                      // Handle card payment simulation
+                      Navigator.pop(context); // Close the add money dialog
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Failed to add money: ${walletProvider.error}')),
+                        const SnackBar(content: Text('Simulating Card payment...')),
                       );
+                      await Future.delayed(const Duration(seconds: 2));
+
+                      final success = await walletProvider.addMoney(
+                        authProvider.currentUser!.id,
+                        amount,
+                        method: _selectedMethod,
+                      );
+                      
+                      if (success) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Money added successfully via ${_selectedMethod.name}')),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to add money: ${walletProvider.error}')),
+                        );
+                      }
                     }
                   }
                 },
-                child: Text('Add'),
+                child: const Text('Add'),
               ),
             ],
           );
@@ -119,24 +127,110 @@ class _WalletScreenState extends State<WalletScreen> {
       ),
     );
   }
+
+  void _initiateUpiPayment(String userId, double amount) async {
+    final UpiIndia upi = UpiIndia();
+    List<UpiApp> installedUpiApps = await upi.getAllUpiApps(mandatoryTransactionId: false);
+
+    if (installedUpiApps.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No UPI apps found. Please install a UPI app to proceed.')),
+      );
+      return;
+    }
+
+    UpiApp? selectedUpiApp = await showModalBottomSheet<UpiApp>(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  'Choose UPI App',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              ListView.builder(
+                shrinkWrap: true,
+                itemCount: installedUpiApps.length,
+                itemBuilder: (context, index) {
+                  final app = installedUpiApps[index];
+                  return ListTile(
+                    leading: Image.memory(
+                      app.icon,
+                      height: 32,
+                      width: 32,
+                    ),
+                    title: Text(app.name),
+                    onTap: () => Navigator.pop(context, app),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selectedUpiApp == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('UPI payment cancelled by user.')),
+      );
+      return;
+    }
+
+    _transaction = upi.startTransaction(
+      app: selectedUpiApp,
+      receiverUpiId: 'test@upi', // Replace with actual UPI ID
+      receiverName: 'QuickPark Wallet',
+      transactionRefId: DateTime.now().millisecondsSinceEpoch.toString(),
+      transactionNote: 'Add money to QuickPark wallet',
+      amount: amount, // Convert double to String here
+    );
+    
+    // Listen for transaction response
+    _transaction?.then((response) async {
+      String message = '';
+      final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+      
+      switch (response.status) {
+        case UpiPaymentStatus.SUCCESS:
+          message = 'UPI payment successful!';
+          await walletProvider.addMoney(userId, amount, method: PaymentMethod.upi);
+          break;
+        case UpiPaymentStatus.SUBMITTED:
+          message = 'UPI payment submitted (pending verification).';
+          break;
+        case UpiPaymentStatus.FAILURE:
+          message = 'UPI payment failed.';
+          break;
+        default:
+          message = 'UPI payment status: ${response.status}';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    });
+  }
   
   Widget _paymentOption(String label, IconData icon, bool isSelected, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           border: Border.all(
             color: isSelected ? Colors.blue : Colors.grey.shade300,
             width: isSelected ? 2 : 1,
           ),
           borderRadius: BorderRadius.circular(8),
-          color: isSelected ? Colors.blue.withValues(alpha: 0.1) : null,
+          color: isSelected ? Colors.blue.withOpacity(0.1) : null,
         ),
         child: Column(
           children: [
             Icon(icon, color: isSelected ? Colors.blue : Colors.grey),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
@@ -156,16 +250,16 @@ class _WalletScreenState extends State<WalletScreen> {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text('My Wallet'),
+        title: const Text('My Wallet'),
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             onPressed: _loadWalletData,
           ),
         ],
       ),
       body: walletProvider.isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : Padding(
               padding: const EdgeInsets.all(20.0),
               child: Column(
@@ -179,14 +273,14 @@ class _WalletScreenState extends State<WalletScreen> {
                       padding: const EdgeInsets.all(24.0),
                       child: Column(
                         children: [
-                          Text(
+                          const Text(
                             'Available Balance',
                             style: TextStyle(color: Colors.white70, fontSize: 16),
                           ),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text(
                             '${AppConfig.currencySymbol} ${walletProvider.balance.toStringAsFixed(2)}',
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 36,
                               fontWeight: FontWeight.bold,
@@ -196,22 +290,22 @@ class _WalletScreenState extends State<WalletScreen> {
                       ),
                     ),
                   ),
-                  SizedBox(height: 30),
+                  const SizedBox(height: 30),
                   ElevatedButton.icon(
                     onPressed: _addMoney,
-                    icon: Icon(Icons.add),
-                    label: Text('Add Money'),
-                    style: ElevatedButton.styleFrom(padding: EdgeInsets.symmetric(vertical: 16)),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Money'),
+                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
                   ),
-                  SizedBox(height: 40),
-                  Text(
+                  const SizedBox(height: 40),
+                  const Text(
                     'Recent Transactions',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   Expanded(
                     child: walletProvider.transactions.isEmpty
-                        ? Center(
+                        ? const Center(
                             child: Text('No transactions yet', style: TextStyle(color: Colors.grey)),
                           )
                         : ListView.builder(
@@ -221,7 +315,7 @@ class _WalletScreenState extends State<WalletScreen> {
                               final isDeposit = transaction.type == TransactionType.deposit;
                               
                               return Card(
-                                margin: EdgeInsets.only(bottom: 8),
+                                margin: const EdgeInsets.only(bottom: 8),
                                 child: ListTile(
                                   leading: CircleAvatar(
                                     backgroundColor: isDeposit ? Colors.green[100] : Colors.red[100],

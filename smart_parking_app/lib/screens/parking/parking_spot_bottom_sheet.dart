@@ -11,6 +11,8 @@ import 'package:smart_parking_app/providers/wallet_provider.dart';
 import 'package:smart_parking_app/screens/parking/booking_confirmation_screen.dart';
 import 'package:smart_parking_app/widgets/common/loading_indicator.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:smart_parking_app/models/transaction.dart'; // Import PaymentMethod enum
+import 'package:flutter_upi_india/flutter_upi_india.dart';
 
 class ParkingSpotBottomSheet extends StatefulWidget {
   @override
@@ -21,7 +23,7 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
   DateTime _startTime = DateTime.now().add(Duration(minutes: 15));
   DateTime _endTime = DateTime.now().add(Duration(hours: 1, minutes: 15));
   bool _isBooking = false;
-  bool _useWallet = false;
+  PaymentMethod _selectedPaymentMethod = PaymentMethod.upi;
 
   Future<void> _launchMaps(double lat, double lon) async {
     final googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$lat,$lon';
@@ -131,7 +133,7 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
     final totalPrice = _calculateTotalPrice();
 
     // Check wallet balance if selected
-    if (_useWallet) {
+    if (_selectedPaymentMethod == PaymentMethod.wallet) {
       final walletProvider = Provider.of<WalletProvider>(context, listen: false);
       // Ensure wallet data is loaded
       if (walletProvider.balance == 0) {
@@ -147,6 +149,85 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
       }
     }
 
+    // Process UPI payment if selected
+    if (_selectedPaymentMethod == PaymentMethod.upi) {
+      try {
+        // Get installed UPI apps
+        final List<ApplicationMeta> installedUpiApps = await UpiPay.getInstalledUpiApps();
+
+        if (installedUpiApps.isEmpty) {
+          setState(() => _isBooking = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('No UPI apps found. Please install a UPI app to proceed.')),
+          );
+          return;
+        }
+
+        ApplicationMeta? selectedUpiApp = await showModalBottomSheet<ApplicationMeta>(
+          context: context,
+          builder: (BuildContext context) {
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'Choose UPI App',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: installedUpiApps.length,
+                    itemBuilder: (context, index) {
+                      final app = installedUpiApps[index];
+                      return ListTile(
+                        leading: app.iconImage(32),
+                        title: Text(app.application.getAppName()),
+                        onTap: () => Navigator.pop(context, app),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+
+        if (selectedUpiApp == null) {
+          setState(() => _isBooking = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('UPI payment cancelled by user.')),
+          );
+          return;
+        }
+
+        final UpiTransactionResponse transactionResponse = await UpiPay.initiateTransaction(
+          amount: totalPrice.toStringAsFixed(2),
+          app: selectedUpiApp.application,
+          receiverName: 'QuickPark',
+          receiverUpiAddress: 'quickpark@upi', // Replace with actual UPI ID
+          transactionRef: 'QP${DateTime.now().millisecondsSinceEpoch}',
+          transactionNote: 'Parking booking payment',
+        );
+
+        if (transactionResponse.status != UpiTransactionStatus.success) {
+          setState(() => _isBooking = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('UPI payment failed or cancelled: ${transactionResponse.status}')),
+          );
+          return;
+        }
+      } catch (e) {
+        setState(() => _isBooking = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('UPI payment error: $e')),
+        );
+        return;
+      }
+    }
+
     // Create booking in database
     final booking = await bookingProvider.createBooking(
       userId,
@@ -154,11 +235,12 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
       _startTime,
       _endTime,
       totalPrice,
+      _selectedPaymentMethod.name,
     );
     
     if (booking != null) {
       // Process wallet payment if selected
-      if (_useWallet) {
+      if (_selectedPaymentMethod == PaymentMethod.wallet) {
         final walletProvider = Provider.of<WalletProvider>(context, listen: false);
         await walletProvider.payForBooking(userId, totalPrice, booking.id);
       }
@@ -179,6 +261,7 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
             endTime: _endTime,
             totalPrice: totalPrice,
             bookingId: booking.id, // Use actual booking ID from database
+            paymentMethod: _selectedPaymentMethod.name,
           ),
         ),
       );
@@ -449,22 +532,7 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
             ),
           ),
           SizedBox(height: 16),
-          // Wallet Payment Option
-          Consumer<WalletProvider>(
-            builder: (context, walletProvider, _) {
-              return CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('Pay with Wallet (Balance: ${AppConfig.currencySymbol}${walletProvider.balance.toStringAsFixed(2)})'),
-                value: _useWallet,
-                onChanged: (value) {
-                  setState(() {
-                    _useWallet = value ?? false;
-                  });
-                },
-                secondary: Icon(Icons.account_balance_wallet, color: Colors.blue),
-              );
-            },
-          ),
+          _buildPaymentMethodSelector(),
           SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -487,6 +555,64 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
           SizedBox(height: 16),
         ],
       ),
+    );
+  }
+
+  Widget _buildPaymentMethodSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Select Payment Method',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            ChoiceChip(
+              label: const Text('UPI'),
+              selected: _selectedPaymentMethod == PaymentMethod.upi,
+              onSelected: (selected) {
+                if (selected) {
+                  setState(() {
+                    _selectedPaymentMethod = PaymentMethod.upi;
+                  });
+                }
+              },
+            ),
+            ChoiceChip(
+              label: const Text('Cash'),
+              selected: _selectedPaymentMethod == PaymentMethod.cash,
+              onSelected: (selected) {
+                if (selected) {
+                  setState(() {
+                    _selectedPaymentMethod = PaymentMethod.cash;
+                  });
+                }
+              },
+            ),
+            Consumer<WalletProvider>(
+              builder: (context, walletProvider, _) {
+                return ChoiceChip(
+                  label: Text('Wallet (${AppConfig.currencySymbol}${walletProvider.balance.toStringAsFixed(2)})'),
+                  selected: _selectedPaymentMethod == PaymentMethod.wallet,
+                  onSelected: (selected) {
+                    if (selected) {
+                      setState(() {
+                        _selectedPaymentMethod = PaymentMethod.wallet;
+                      });
+                    }
+                  },
+                );
+              },
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

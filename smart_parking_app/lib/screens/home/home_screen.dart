@@ -8,6 +8,7 @@ import 'package:smart_parking_app/providers/location_provider.dart';
 import 'package:smart_parking_app/screens/home/dashboard_screen.dart';
 import 'package:smart_parking_app/screens/profile/booking_history_screen.dart';
 import 'package:smart_parking_app/screens/profile/profile_screen.dart';
+import 'package:smart_parking_app/screens/wallet/wallet_screen.dart';
 import 'package:smart_parking_app/widgets/common/loading_indicator.dart';
 import 'package:smart_parking_app/screens/parking/parking_map_screen.dart';
 class HomeScreen extends StatefulWidget {
@@ -64,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final List<Widget> pages = [
       const DashboardScreen(),
        BookingHistoryScreen(),
+       WalletScreen(),
        ParkingMapScreen(),
       const ProfileScreen(),
     ];
@@ -107,12 +109,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 _buildNavItem(
                   index: 2,
-                  icon: Icons.notifications_outlined,
-                  activeIcon: Icons.notifications,
-                  label: 'Map',
+                  icon: Icons.account_balance_wallet_outlined,
+                  activeIcon: Icons.account_balance_wallet,
+                  label: 'Wallet',
                 ),
                 _buildNavItem(
                   index: 3,
+                  icon: Icons.map_outlined,
+                  activeIcon: Icons.map,
+                  label: 'Map',
+                ),
+                _buildNavItem(
+                  index: 4,
                   icon: Icons.person_outline,
                   activeIcon: Icons.person,
                   label: 'Profile',

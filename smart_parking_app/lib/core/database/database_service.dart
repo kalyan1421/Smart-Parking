@@ -214,6 +214,7 @@ class DatabaseService {
     required DateTime startTime,
     required DateTime endTime,
     required double pricePerHour,
+    required String paymentMethod,
     String? notes,
   }) async {
     try {
@@ -292,6 +293,7 @@ class DatabaseService {
           'pricePerHour': pricePerHour,
           'totalPrice': totalPrice,
           'status': 'confirmed',
+          'paymentMethod': paymentMethod,
           'createdAt': Timestamp.fromDate(now),
           'updatedAt': Timestamp.fromDate(now),
           'notes': notes,

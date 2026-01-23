@@ -2,6 +2,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum TransactionType { deposit, payment, refund }
+enum PaymentMethod { upi, card, wallet, cash }
 
 class WalletTransaction {
   final String id;
@@ -11,6 +12,7 @@ class WalletTransaction {
   final String description;
   final DateTime createdAt;
   final String? bookingId;
+  final PaymentMethod? paymentMethod;
 
   WalletTransaction({
     required this.id,
@@ -20,6 +22,7 @@ class WalletTransaction {
     required this.description,
     required this.createdAt,
     this.bookingId,
+    this.paymentMethod,
   });
 
   factory WalletTransaction.fromFirestore(DocumentSnapshot doc) {
@@ -32,6 +35,7 @@ class WalletTransaction {
       description: data['description'] ?? '',
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       bookingId: data['bookingId'],
+      paymentMethod: _parsePaymentMethod(data['paymentMethod']),
     );
   }
 
@@ -43,6 +47,7 @@ class WalletTransaction {
       'description': description,
       'createdAt': Timestamp.fromDate(createdAt),
       'bookingId': bookingId,
+      'paymentMethod': paymentMethod?.name,
     };
   }
 
@@ -50,6 +55,14 @@ class WalletTransaction {
     return TransactionType.values.firstWhere(
       (e) => e.name == type,
       orElse: () => TransactionType.payment,
+    );
+  }
+
+  static PaymentMethod? _parsePaymentMethod(String? method) {
+    if (method == null) return null;
+    return PaymentMethod.values.firstWhere(
+      (e) => e.name == method,
+      orElse: () => PaymentMethod.cash, // Default or error handling
     );
   }
 }

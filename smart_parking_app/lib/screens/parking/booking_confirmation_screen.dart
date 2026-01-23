@@ -16,6 +16,7 @@ class BookingConfirmationScreen extends StatefulWidget {
   final DateTime endTime;
   final double totalPrice;
   final String bookingId;
+  final String paymentMethod;
 
   const BookingConfirmationScreen({
     Key? key,
@@ -24,6 +25,7 @@ class BookingConfirmationScreen extends StatefulWidget {
     required this.endTime,
     required this.totalPrice,
     required this.bookingId,
+    required this.paymentMethod,
   }) : super(key: key);
 
   @override
@@ -31,80 +33,6 @@ class BookingConfirmationScreen extends StatefulWidget {
 }
 
 class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
-  bool _isSaving = false;
-  Booking? _createdBooking;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _saveBookingToDatabase();
-  }
-
-  Future<void> _saveBookingToDatabase() async {
-    if (_isSaving || _createdBooking != null) return;
-
-    setState(() {
-      _isSaving = true;
-      _error = null;
-    });
-
-    try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
-
-      if (authProvider.currentUser == null) {
-        throw Exception('User not logged in');
-      }
-
-      final booking = await bookingProvider.createBooking(
-        authProvider.currentUser!.id,
-        widget.parkingSpot,
-        widget.startTime,
-        widget.endTime,
-        widget.totalPrice,
-      );
-
-      if (booking == null) {
-        throw Exception('Failed to create booking');
-      }
-
-      setState(() {
-        _createdBooking = booking;
-        _isSaving = false;
-      });
-
-      // Phase 1: Show simple cash payment dialog
-      if (booking != null && mounted) {
-        await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) => AlertDialog(
-            title: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green),
-                SizedBox(width: 8),
-                Text('Booking Confirmed'),
-              ],
-            ),
-            content: Text('Pay Cash at Gate and show your Booking ID.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text('OK'),
-              ),
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isSaving = false;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final durationMinutes = widget.endTime.difference(widget.startTime).inMinutes;
@@ -115,39 +43,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
       appBar: AppBar(
         title: Text('Booking Confirmation'),
       ),
-      body: _isSaving
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  LoadingIndicator(),
-                  SizedBox(height: 16),
-                  Text('Saving your booking...'),
-                ],
-              ),
-            )
-          : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.error_outline, color: Colors.red, size: 48),
-                      SizedBox(height: 16),
-                      Text(
-                        'Error saving booking',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      SizedBox(height: 8),
-                      Text(_error!),
-                      SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _saveBookingToDatabase,
-                        child: Text('Retry'),
-                      ),
-                    ],
-                  ),
-                )
-              : SingleChildScrollView(
+      body: SingleChildScrollView(
                   padding: EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -243,7 +139,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                               _buildInfoRow(
                                 context, 
                                 'Booking ID', 
-                                _createdBooking?.id ?? widget.bookingId,
+                                widget.bookingId,
                               ),
                               _buildDivider(),
                               _buildInfoRow(
@@ -264,6 +160,12 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen> {
                                 hours > 0 
                                     ? '${hours}h ${minutes > 0 ? '${minutes}m' : ''}' 
                                     : '${minutes}m',
+                              ),
+                              _buildDivider(),
+                              _buildInfoRow(
+                                context,
+                                'Payment Method',
+                                widget.paymentMethod.toUpperCase(),
                               ),
                               _buildDivider(),
                               _buildInfoRow(

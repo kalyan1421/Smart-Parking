@@ -3,12 +3,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum BookingStatus { pending, confirmed, active, completed, cancelled, expired }
 
+/// Check-in method used for the booking
+enum CheckInMethod { qrCode, numberPlate, manual }
+
 class Booking {
   final String id;
   final String userId;
   final String parkingSpotId;
   final String parkingSpotName;
   final String vehicleId;
+  final String? vehicleNumberPlate; // Vehicle number plate for ANPR check-in/out
   final double latitude;
   final double longitude;
   final DateTime startTime;
@@ -16,16 +20,21 @@ class Booking {
   final double pricePerHour;
   final double totalPrice;
   final double? cancellationFee;
+  final double? overtimeFee; // Extra fee if user exceeds booked time
   final BookingStatus status;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? qrCode; // QR code for entry/exit
   final Map<String, dynamic> paymentInfo;
+  final String? paymentMethod;
   final String? notes;
   final List<String> notifications; // Notification IDs sent for this booking
   final DateTime? checkedInAt;
   final DateTime? checkedOutAt;
+  final CheckInMethod? checkInMethod; // How the user checked in
+  final CheckInMethod? checkOutMethod; // How the user checked out
   final Map<String, dynamic>? feedback; // User rating and review
+  final bool autoCompleteEnabled; // Auto-complete booking when time expires
 
   Booking({
     required this.id,
@@ -33,6 +42,7 @@ class Booking {
     required this.parkingSpotId,
     required this.parkingSpotName,
     required this.vehicleId,
+    this.vehicleNumberPlate,
     required this.latitude,
     required this.longitude,
     required this.startTime,
@@ -40,16 +50,21 @@ class Booking {
     required this.pricePerHour,
     required this.totalPrice,
     this.cancellationFee,
+    this.overtimeFee,
     this.status = BookingStatus.pending,
     required this.createdAt,
     required this.updatedAt,
     this.qrCode,
     this.paymentInfo = const {},
+    this.paymentMethod,
     this.notes,
     this.notifications = const [],
     this.checkedInAt,
     this.checkedOutAt,
+    this.checkInMethod,
+    this.checkOutMethod,
     this.feedback,
+    this.autoCompleteEnabled = true,
   });
 
   // Factory constructor from Firestore document
@@ -62,6 +77,7 @@ class Booking {
       parkingSpotId: data['parkingSpotId'] ?? '',
       parkingSpotName: data['parkingSpotName'] ?? '',
       vehicleId: data['vehicleId'] ?? '',
+      vehicleNumberPlate: data['vehicleNumberPlate'],
       latitude: data['latitude']?.toDouble() ?? 0.0,
       longitude: data['longitude']?.toDouble() ?? 0.0,
       startTime: (data['startTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -69,18 +85,23 @@ class Booking {
       pricePerHour: data['pricePerHour']?.toDouble() ?? 0.0,
       totalPrice: data['totalPrice']?.toDouble() ?? 0.0,
       cancellationFee: data['cancellationFee']?.toDouble(),
+      overtimeFee: data['overtimeFee']?.toDouble(),
       status: _parseStatus(data['status']),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       qrCode: data['qrCode'],
       paymentInfo: Map<String, dynamic>.from(data['paymentInfo'] ?? {}),
+      paymentMethod: data['paymentMethod'],
       notes: data['notes'],
       notifications: _parseStringList(data['notifications']),
       checkedInAt: (data['checkedInAt'] as Timestamp?)?.toDate(),
       checkedOutAt: (data['checkedOutAt'] as Timestamp?)?.toDate(),
+      checkInMethod: _parseCheckInMethod(data['checkInMethod']),
+      checkOutMethod: _parseCheckInMethod(data['checkOutMethod']),
       feedback: data['feedback'] != null 
           ? Map<String, dynamic>.from(data['feedback']) 
           : null,
+      autoCompleteEnabled: data['autoCompleteEnabled'] ?? true,
     );
   }
 
@@ -92,6 +113,7 @@ class Booking {
       parkingSpotId: data['parkingSpotId'] ?? '',
       parkingSpotName: data['parkingSpotName'] ?? '',
       vehicleId: data['vehicleId'] ?? '',
+      vehicleNumberPlate: data['vehicleNumberPlate'],
       latitude: data['latitude']?.toDouble() ?? 0.0,
       longitude: data['longitude']?.toDouble() ?? 0.0,
       startTime: (data['startTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -99,18 +121,23 @@ class Booking {
       pricePerHour: data['pricePerHour']?.toDouble() ?? 0.0,
       totalPrice: data['totalPrice']?.toDouble() ?? 0.0,
       cancellationFee: data['cancellationFee']?.toDouble(),
+      overtimeFee: data['overtimeFee']?.toDouble(),
       status: _parseStatus(data['status']),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       qrCode: data['qrCode'],
       paymentInfo: Map<String, dynamic>.from(data['paymentInfo'] ?? {}),
+      paymentMethod: data['paymentMethod'],
       notes: data['notes'],
       notifications: _parseStringList(data['notifications']),
       checkedInAt: (data['checkedInAt'] as Timestamp?)?.toDate(),
       checkedOutAt: (data['checkedOutAt'] as Timestamp?)?.toDate(),
+      checkInMethod: _parseCheckInMethod(data['checkInMethod']),
+      checkOutMethod: _parseCheckInMethod(data['checkOutMethod']),
       feedback: data['feedback'] != null 
           ? Map<String, dynamic>.from(data['feedback']) 
           : null,
+      autoCompleteEnabled: data['autoCompleteEnabled'] ?? true,
     );
   }
 
@@ -121,6 +148,7 @@ class Booking {
       'parkingSpotId': parkingSpotId,
       'parkingSpotName': parkingSpotName,
       'vehicleId': vehicleId,
+      'vehicleNumberPlate': vehicleNumberPlate,
       'latitude': latitude,
       'longitude': longitude,
       'startTime': Timestamp.fromDate(startTime),
@@ -128,16 +156,21 @@ class Booking {
       'pricePerHour': pricePerHour,
       'totalPrice': totalPrice,
       'cancellationFee': cancellationFee,
+      'overtimeFee': overtimeFee,
       'status': status.name,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
       'qrCode': qrCode,
       'paymentInfo': paymentInfo,
+      'paymentMethod': paymentMethod,
       'notes': notes,
       'notifications': notifications,
       'checkedInAt': checkedInAt != null ? Timestamp.fromDate(checkedInAt!) : null,
       'checkedOutAt': checkedOutAt != null ? Timestamp.fromDate(checkedOutAt!) : null,
+      'checkInMethod': checkInMethod?.name,
+      'checkOutMethod': checkOutMethod?.name,
       'feedback': feedback,
+      'autoCompleteEnabled': autoCompleteEnabled,
     };
   }
 
@@ -158,6 +191,20 @@ class Booking {
         return BookingStatus.pending;
     }
   }
+  
+  // Helper method to parse check-in method from string
+  static CheckInMethod? _parseCheckInMethod(String? methodString) {
+    switch (methodString) {
+      case 'qrCode':
+        return CheckInMethod.qrCode;
+      case 'numberPlate':
+        return CheckInMethod.numberPlate;
+      case 'manual':
+        return CheckInMethod.manual;
+      default:
+        return null;
+    }
+  }
 
   // Helper method to safely parse List<String> from dynamic data
   static List<String> _parseStringList(dynamic data) {
@@ -174,6 +221,7 @@ class Booking {
     String? parkingSpotId,
     String? parkingSpotName,
     String? vehicleId,
+    String? vehicleNumberPlate,
     double? latitude,
     double? longitude,
     DateTime? startTime,
@@ -181,15 +229,20 @@ class Booking {
     double? pricePerHour,
     double? totalPrice,
     double? cancellationFee,
+    double? overtimeFee,
     BookingStatus? status,
     DateTime? updatedAt,
     String? qrCode,
     Map<String, dynamic>? paymentInfo,
+    String? paymentMethod,
     String? notes,
     List<String>? notifications,
     DateTime? checkedInAt,
     DateTime? checkedOutAt,
+    CheckInMethod? checkInMethod,
+    CheckInMethod? checkOutMethod,
     Map<String, dynamic>? feedback,
+    bool? autoCompleteEnabled,
   }) {
     return Booking(
       id: id,
@@ -197,6 +250,7 @@ class Booking {
       parkingSpotId: parkingSpotId ?? this.parkingSpotId,
       parkingSpotName: parkingSpotName ?? this.parkingSpotName,
       vehicleId: vehicleId ?? this.vehicleId,
+      vehicleNumberPlate: vehicleNumberPlate ?? this.vehicleNumberPlate,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       startTime: startTime ?? this.startTime,
@@ -204,16 +258,21 @@ class Booking {
       pricePerHour: pricePerHour ?? this.pricePerHour,
       totalPrice: totalPrice ?? this.totalPrice,
       cancellationFee: cancellationFee ?? this.cancellationFee,
+      overtimeFee: overtimeFee ?? this.overtimeFee,
       status: status ?? this.status,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
       qrCode: qrCode ?? this.qrCode,
       paymentInfo: paymentInfo ?? this.paymentInfo,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
       notes: notes ?? this.notes,
       notifications: notifications ?? this.notifications,
       checkedInAt: checkedInAt ?? this.checkedInAt,
       checkedOutAt: checkedOutAt ?? this.checkedOutAt,
+      checkInMethod: checkInMethod ?? this.checkInMethod,
+      checkOutMethod: checkOutMethod ?? this.checkOutMethod,
       feedback: feedback ?? this.feedback,
+      autoCompleteEnabled: autoCompleteEnabled ?? this.autoCompleteEnabled,
     );
   }
 

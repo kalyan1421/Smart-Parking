@@ -19,6 +19,7 @@ class User {
   final bool isPhoneVerified;
   final bool isPartnerApproved; // Whether user is approved as QuickPark partner
   final String? partnerRequestStatus; // 'pending', 'approved', 'rejected', null
+  final double walletBalance;
   // final DateTime createdAt;
   // final DateTime updatedAt;
   final Map<String, double>? location; // {lat: 0.0, lng: 0.0}
@@ -39,6 +40,7 @@ class User {
     this.isPhoneVerified = false,
     this.isPartnerApproved = false,
     this.partnerRequestStatus,
+    this.walletBalance = 0.0,
     // required this.createdAt,
     // required this.updatedAt,
     this.location,
@@ -62,6 +64,7 @@ class User {
       preferences: _parseStringDynamicMap(data['preferences']),
       isEmailVerified: data['isEmailVerified'] ?? false,
       isPhoneVerified: data['isPhoneVerified'] ?? false,
+      walletBalance: (data['walletBalance'] as num?)?.toDouble() ?? 0.0,
       // createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       // updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       location: _parseLocationMap(data['location']),
@@ -86,6 +89,7 @@ class User {
       isPhoneVerified: data['isPhoneVerified'] ?? false,
       isPartnerApproved: data['isPartnerApproved'] ?? false,
       partnerRequestStatus: data['partnerRequestStatus'],
+      walletBalance: (data['walletBalance'] as num?)?.toDouble() ?? 0.0,
       // createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       // updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       location: _parseLocationMap(data['location']),
@@ -110,6 +114,7 @@ class User {
       'isPhoneVerified': isPhoneVerified,
       'isPartnerApproved': isPartnerApproved,
       'partnerRequestStatus': partnerRequestStatus,
+      'walletBalance': walletBalance,
       'createdAt': Timestamp.fromDate(now),
       'updatedAt': Timestamp.fromDate(now),
       'location': location,
@@ -176,6 +181,7 @@ class User {
     bool? isPhoneVerified,
     bool? isPartnerApproved,
     String? partnerRequestStatus,
+    double? walletBalance,
     DateTime? updatedAt,
     Map<String, double>? location,
   }) {
@@ -195,6 +201,7 @@ class User {
       isPhoneVerified: isPhoneVerified ?? this.isPhoneVerified,
       isPartnerApproved: isPartnerApproved ?? this.isPartnerApproved,
       partnerRequestStatus: partnerRequestStatus ?? this.partnerRequestStatus,
+      walletBalance: walletBalance ?? this.walletBalance,
       // createdAt: createdAt,
       // updatedAt: updatedAt ?? DateTime.now(),
       location: location ?? this.location,
