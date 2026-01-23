@@ -1,9 +1,11 @@
 // lib/screens/home/dashboard_screen.dart - Enhanced Dashboard screen
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_parking_app/config/app_config.dart';
 import 'package:smart_parking_app/config/routes.dart';
+import 'package:smart_parking_app/config/theme.dart';
 import 'package:smart_parking_app/models/booking.dart';
 import 'package:smart_parking_app/models/parking_spot.dart';
 import 'package:smart_parking_app/models/traffic_bot.dart';
@@ -13,7 +15,6 @@ import 'package:smart_parking_app/providers/location_provider.dart';
 import 'package:smart_parking_app/providers/parking_provider.dart';
 import 'package:smart_parking_app/providers/traffic_provider.dart';
 import 'package:smart_parking_app/screens/parking/parking_directions_screen.dart';
-import 'package:smart_parking_app/services/weather_service.dart';
 import 'package:smart_parking_app/widgets/common/loading_indicator.dart';
 import 'package:intl/intl.dart';
 
@@ -28,19 +29,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isInitialized = false;
   GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
-  Set<Circle> _trafficHotspots = {};
-  String _trafficCondition = 'Unknown';
-  Color _trafficColor = Colors.grey;
-  WeatherData? _weatherData;
-  bool _isLoadingWeather = false;
+  String _trafficCondition = 'Normal';
+  Color _trafficColor = AppTheme.successColor;
+  int _trafficDelayMinutes = 0;
+  Timer? _countdownTimer;
   
   @override
   void initState() {
     super.initState();
-    // Defer data loading to after the build phase
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _loadData();
+        _startCountdownTimer();
       }
     });
   }
@@ -48,7 +48,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void dispose() {
     _mapController?.dispose();
+    _countdownTimer?.cancel();
     super.dispose();
+  }
+  
+  void _startCountdownTimer() {
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
   
   Future<void> _loadData() async {
@@ -97,19 +106,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await trafficProvider.loadTrafficData(
         locationProvider.currentLocation!.latitude,
         locationProvider.currentLocation!.longitude,
-        2.0 // 2 km radius
+        2.0
       );
       
       if (!mounted) return;
-      
-      // Create traffic hotspots visualization
-      _createTrafficHotspots(trafficProvider);
-      
-      // Analyze overall traffic condition
       _analyzeTrafficCondition(trafficProvider);
-      
-      // Load weather data
-      _loadWeather(locationProvider.currentLocation!.latitude, locationProvider.currentLocation!.longitude);
     }
     
     if (mounted) {
@@ -119,62 +120,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
   
-  void _createTrafficHotspots(TrafficProvider trafficProvider) {
-    final hotspots = <Circle>{};
-    
-    for (final bot in trafficProvider.trafficBots) {
-      Color color;
-      double radius;
-      
-      switch (bot.trafficLevel) {
-        case TrafficLevel.low:
-          color = Colors.green;
-          radius = 100.0;
-          break;
-        case TrafficLevel.medium:
-          color = Colors.orange;
-          radius = 150.0;
-          break;
-        case TrafficLevel.high:
-          color = Colors.red;
-          radius = 200.0;
-          break;
-        case TrafficLevel.severe:
-          color = Colors.purple;
-          radius = 250.0;
-          break;
-        default:
-          color = Colors.blue;
-          radius = 100.0;
-      }
-      
-      hotspots.add(Circle(
-        circleId: CircleId(bot.id),
-        center: LatLng(bot.latitude, bot.longitude),
-        radius: radius,
-        fillColor: color.withOpacity(0.2),
-        strokeColor: color,
-        strokeWidth: 1,
-      ));
-    }
-    
-    if (mounted) {
-      setState(() {
-        _trafficHotspots = hotspots;
-      });
-    }
-  }
-  
   void _analyzeTrafficCondition(TrafficProvider trafficProvider) {
-    // Analyze traffic and set condition
     if (!mounted) return;
     
-    String condition = 'Unknown';
-    Color color = Colors.grey;
+    String condition = 'Normal';
+    Color color = AppTheme.successColor;
+    int delayMinutes = 0;
     
     if (trafficProvider.trafficBots.isEmpty) {
-      condition = 'Normal';
-      color = Colors.green;
+      condition = 'Light traffic';
+      color = AppTheme.successColor;
     } else {
       int severeCount = 0;
       int highCount = 0;
@@ -197,17 +152,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
       
       if (severeCount > 0) {
-        condition = 'Severe';
-        color = Colors.purple;
+        condition = 'Heavy congestion';
+        color = AppTheme.errorColor;
+        delayMinutes = 25;
       } else if (highCount > 2) {
-        condition = 'Heavy';
-        color = Colors.red;
+        condition = 'Heavy congestion';
+        color = AppTheme.errorColor;
+        delayMinutes = 15;
       } else if (highCount > 0 || mediumCount > 2) {
-        condition = 'Moderate';
-        color = Colors.orange;
+        condition = 'Moderate traffic';
+        color = AppTheme.warningColor;
+        delayMinutes = 8;
       } else {
-        condition = 'Light';
-        color = Colors.green;
+        condition = 'Light traffic';
+        color = AppTheme.successColor;
+        delayMinutes = 0;
       }
     }
     
@@ -215,33 +174,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       setState(() {
         _trafficCondition = condition;
         _trafficColor = color;
+        _trafficDelayMinutes = delayMinutes;
       });
-    }
-  }
-
-  Future<void> _loadWeather(double lat, double lon) async {
-    if (!mounted) return;
-    
-    setState(() {
-      _isLoadingWeather = true;
-    });
-    
-    try {
-      final weatherService = WeatherService();
-      final data = await weatherService.getCurrentWeather(lat, lon);
-      if (mounted) {
-        setState(() {
-          _weatherData = data;
-          _isLoadingWeather = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading weather: $e');
-      if (mounted) {
-        setState(() {
-          _isLoadingWeather = false;
-        });
-      }
     }
   }
   
@@ -275,7 +209,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     
     final locationProvider = Provider.of<LocationProvider>(context, listen: false);
     final parkingProvider = Provider.of<ParkingProvider>(context, listen: false);
-    final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
     
     final markers = <Marker>{};
     
@@ -292,36 +225,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ));
     }
     
-    // Add markers for active booking locations
-    for (final booking in bookingProvider.activeBookings) {
-      markers.add(Marker(
-        markerId: MarkerId('booking_${booking.id}'),
-        position: LatLng(booking.latitude, booking.longitude),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        infoWindow: InfoWindow(
-          title: booking.parkingSpotName,
-          snippet: 'Your active booking',
-        ),
-      ));
-    }
-    
-    // Add markers for nearby parking (limited to 5 to avoid cluttering)
+    // Add markers for nearby parking (limited to 5)
     final nearbySpots = parkingProvider.nearbyParkingSpots.take(5).toList();
     for (final spot in nearbySpots) {
-      // Skip if this spot is already booked by the user
-      if (bookingProvider.activeBookings.any((b) => b.parkingSpotId == spot.id)) {
-        continue;
-      }
-      
       markers.add(Marker(
         markerId: MarkerId('parking_${spot.id}'),
         position: LatLng(spot.latitude, spot.longitude),
         icon: BitmapDescriptor.defaultMarkerWithHue(
-          spot.availableSpots > 0 ? BitmapDescriptor.hueYellow : BitmapDescriptor.hueRed
+          spot.availableSpots > 0 ? BitmapDescriptor.hueGreen : BitmapDescriptor.hueRed
         ),
         infoWindow: InfoWindow(
           title: spot.name,
-          snippet: '${spot.availableSpots} spots • ${AppConfig.currencySymbol}${spot.pricePerHour.toStringAsFixed(2)}/hr',
+          snippet: '${spot.availableSpots} spots',
         ),
       ));
     }
@@ -332,23 +247,224 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
   
+  String _formatCountdown(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    final seconds = duration.inSeconds.remainder(60);
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final bookingProvider = Provider.of<BookingProvider>(context);
+    final locationProvider = Provider.of<LocationProvider>(context);
+    
+    if (!_isInitialized || !locationProvider.hasLocation) {
+      return const Scaffold(
+        backgroundColor: AppTheme.backgroundColor,
+        body: Center(child: LoadingIndicator()),
+      );
+    }
+    
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        color: AppTheme.primaryColor,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Map Section
+              _buildMapSection(locationProvider),
+              
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Welcome Card
+                    _buildWelcomeCard(authProvider),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Active Booking Card
+                    if (bookingProvider.activeBookings.isNotEmpty)
+                      _buildActiveBookingCard(bookingProvider.activeBookings.first),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Traffic Status Card
+                    _buildTrafficStatusCard(),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Quick Actions
+                    _buildQuickActionsSection(bookingProvider),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildMapSection(LocationProvider locationProvider) {
+    return SizedBox(
+      height: 220,
+      child: Stack(
+        children: [
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: LatLng(
+                locationProvider.currentLocation!.latitude,
+                locationProvider.currentLocation!.longitude,
+              ),
+              zoom: 13,
+            ),
+            markers: _markers,
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+            onMapCreated: _onMapCreated,
+            mapToolbarEnabled: false,
+          ),
+          // My Location Button
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: AppTheme.shadowMd,
+              ),
+              child: IconButton(
+                onPressed: _centerOnUserLocation,
+                icon: Icon(Icons.my_location, color: AppTheme.primaryColor),
+              ),
+            ),
+          ),
+          // Search Bar Overlay
+          Positioned(
+            bottom: 16,
+            left: 16,
+            right: 80,
+            child: GestureDetector(
+              onTap: () {
+                Navigator.pushNamed(context, AppRoutes.parkingmap);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                  boxShadow: AppTheme.shadowMd,
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.search, color: AppTheme.textMuted),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Search for parking or location',
+                      style: TextStyle(
+                        color: AppTheme.textMuted,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildWelcomeCard(AuthProvider authProvider) {
+    final user = authProvider.currentUser;
+    final displayName = user?.displayName ?? 'User';
+    final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U';
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        boxShadow: AppTheme.shadowSm,
+      ),
+      child: Row(
+        children: [
+          // Avatar with image or initials
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              gradient: AppTheme.primaryGradient,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primaryColor.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Text(
+                initial,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Welcome, $displayName',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Find your parking spot today',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
   Widget _buildActiveBookingCard(Booking booking) {
-    final durationMinutes = booking.endTime.difference(DateTime.now()).inMinutes;
-    final hours = durationMinutes ~/ 60;
-    final minutes = durationMinutes % 60;
+    final remaining = booking.endTime.difference(DateTime.now());
+    final isExpiringSoon = remaining.inMinutes < 30;
     
-    final timeRemaining = hours > 0 
-        ? '${hours}h ${minutes > 0 ? '${minutes}m' : ''} remaining' 
-        : minutes > 0 
-            ? '${minutes}m remaining' 
-            : 'Expires soon';
-    
-    // Create parking spot object for directions
     final parkingSpot = ParkingSpot(
       id: booking.parkingSpotId,
       name: booking.parkingSpotName,
       description: 'Booked parking spot',
-      address: '', // Not available from booking
+      address: '',
       latitude: booking.latitude,
       longitude: booking.longitude,
       totalSpots: 0,
@@ -364,648 +480,357 @@ class _DashboardScreenState extends State<DashboardScreen> {
       isVerified: true,
     );
     
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        boxShadow: AppTheme.shadowSm,
+        border: Border.all(
+          color: AppTheme.primaryColor.withOpacity(0.2),
+          width: 1,
+        ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withOpacity(0.05),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(AppTheme.radiusLg),
+                topRight: Radius.circular(AppTheme.radiusLg),
+              ),
+            ),
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: Text(
-                    booking.parkingSpotName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    'ACTIVE',
-                    style: TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(
-                  timeRemaining,
-                  style: TextStyle(
-                    color: durationMinutes < 30 ? Colors.red : Colors.grey[600],
-                    fontWeight: durationMinutes < 30 ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(
-                  '${DateFormat('MMM d').format(booking.startTime)} • ${DateFormat('h:mm a').format(booking.startTime)} - ${DateFormat('h:mm a').format(booking.endTime)}',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ParkingDirectionsScreen(
-                            parkingSpot: parkingSpot,
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.directions),
-                    label: const Text('DIRECTIONS'),
-                    style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pushNamed(context, AppRoutes.bookingHistory);
-                    },
-                    icon: const Icon(Icons.visibility),
-                    label: const Text('DETAILS'),
-                    style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildNearbyParkingItem(ParkingSpot spot) {
-    return ListTile(
-      title: Text(spot.name),
-      subtitle: Text(
-        '${spot.availableSpots} spots • ${AppConfig.currencySymbol}${spot.pricePerHour.toStringAsFixed(2)}/hr',
-      ),
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: spot.availableSpots > 0 ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          Icons.local_parking,
-          color: spot.availableSpots > 0 ? Colors.green : Colors.red,
-        ),
-      ),
-      trailing: Container(
-        width: 40,
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        decoration: BoxDecoration(
-          color: spot.availableSpots > 0 ? Colors.green : Colors.red,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          spot.availableSpots > 0 ? 'OPEN' : 'FULL',
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 10,
-          ),
-        ),
-      ),
-      onTap: () {
-        Navigator.pushNamed(context, AppRoutes.parkingDetail);
-      },
-    );
-  }
-  
-  @override
-  Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    final bookingProvider = Provider.of<BookingProvider>(context);
-    final parkingProvider = Provider.of<ParkingProvider>(context);
-    final locationProvider = Provider.of<LocationProvider>(context);
-    final trafficProvider = Provider.of<TrafficProvider>(context);
-    
-    // Prepare tile overlays
-    Set<TileOverlay> tileOverlays = {};
-    if (trafficProvider.isOverlaySetup && 
-        trafficProvider.trafficOverlay != null &&
-        trafficProvider.showTrafficLayer) {
-      tileOverlays = {trafficProvider.trafficOverlay!};
-    }
-    
-    if (!_isInitialized || !locationProvider.hasLocation) {
-      return const Center(
-        child: LoadingIndicator(),
-      );
-    }
-    
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('QuickPark'),
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Map section
-              SizedBox(
-                height: 200,
-                child: Stack(
+                Row(
                   children: [
-                    GoogleMap(
-                      initialCameraPosition: CameraPosition(
-                        target: LatLng(
-                          locationProvider.currentLocation!.latitude,
-                          locationProvider.currentLocation!.longitude,
-                        ),
-                        zoom: 13,
-                      ),
-                      markers: _markers,
-                      circles: _trafficHotspots,
-                      tileOverlays: tileOverlays,
-                      myLocationEnabled: true,
-                      myLocationButtonEnabled: false,
-                      zoomControlsEnabled: false,
-                      onMapCreated: _onMapCreated,
-                      mapToolbarEnabled: false,
-                    ),
-                    Positioned(
-                      bottom: 8,
-                      right: 8,
-                      child: FloatingActionButton.small(
-                        onPressed: () {
-                          Navigator.pushNamed(context, AppRoutes.map);
-                        },
-                        tooltip: 'Open Map',
-                        backgroundColor: Colors.white,
-                        foregroundColor: Theme.of(context).primaryColor,
-                        child: const Icon(Icons.fullscreen),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: AppTheme.successColor,
+                        shape: BoxShape.circle,
                       ),
                     ),
-                  ],
-                ),
-              ),
-              
-              // Content
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Welcome section
-                    Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Welcome, ${authProvider.currentUser?.displayName ?? 'User'}!',
-                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  if (_weatherData != null)
-                                    Row(
-                                      children: [
-                                        Image.network(_weatherData!.iconUrl, width: 24, height: 24),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${_weatherData!.tempC.toStringAsFixed(1)}°C - ${_weatherData!.conditionText}',
-                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                            color: Colors.blue[700],
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  else if (_isLoadingWeather)
-                                    const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                  else
-                                    Text(
-                                      'Find and reserve parking spots easily.',
-                                      style: Theme.of(context).textTheme.bodyMedium,
-                                    ),
-                                ],
-                              ),
-                            ),
-                            CircleAvatar(
-                              radius: 30,
-                              backgroundColor: Theme.of(context).primaryColor,
-                              child: Text(
-                                authProvider.currentUser?.displayName.isNotEmpty == true
-                                    ? authProvider.currentUser!.displayName[0].toUpperCase()
-                                    : 'U',
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Traffic status section
-                    Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Current Traffic',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.traffic,
-                                  color: _trafficColor,
-                                  size: 32,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '$_trafficCondition Traffic Conditions',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: _trafficColor,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Based on real-time traffic data in your area',
-                                        style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Switch(
-                                  value: trafficProvider.showTrafficLayer,
-                                  onChanged: (value) {
-                                    trafficProvider.toggleTrafficLayer();
-                                  },
-                                  activeColor: Theme.of(context).primaryColor,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Active bookings section
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Active Bookings',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        if (bookingProvider.activeBookings.isNotEmpty)
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pushNamed(context, AppRoutes.bookingHistory);
-                            },
-                            child: const Text('View All'),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    
-                    if (bookingProvider.isLoading)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16.0),
-                          child: CircularProgressIndicator(),
-                        ),
-                      )
-                    else if (bookingProvider.activeBookings.isEmpty)
-                      Card(
-                        elevation: 0,
-                        color: Colors.grey[100],
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.local_parking,
-                                size: 48,
-                                color: Colors.grey[400],
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'No active bookings',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Book a parking spot for your next trip',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 12,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                onPressed: () {
-                                  Navigator.pushNamed(context, AppRoutes.parkingmap);
-                                },
-                                icon: const Icon(Icons.search),
-                                label: const Text('FIND PARKING'),
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      ...bookingProvider.activeBookings.take(2).map((booking) => 
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: _buildActiveBookingCard(booking),
-                        )
-                      ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Nearby parking section
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Nearby Parking',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pushNamed(context, AppRoutes.parkingList);
-                          },
-                          child: const Text('See All'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    
-                    if (parkingProvider.isLoading)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16.0),
-                          child: CircularProgressIndicator(),
-                        ),
-                      )
-                    else if (parkingProvider.nearbyParkingSpots.isEmpty)
-                      Card(
-                        elevation: 0,
-                        color: Colors.grey[100],
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Center(
-                            child: Text(
-                              'No parking spots found nearby',
-                              style: TextStyle(color: Colors.grey[600]),
-                            ),
-                          ),
-                        ),
-                      )
-                    else
-                      Card(
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          children: [
-                            ...parkingProvider.nearbyParkingSpots.take(3).map((spot) => 
-                              _buildNearbyParkingItem(spot)
-                            ),
-                            const Divider(height: 1),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pushNamed(context, AppRoutes.parkingList);
-                              },
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                              ),
-                              child: const Text('VIEW ALL PARKING SPOTS'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Quick actions
+                    const SizedBox(width: 8),
                     Text(
-                      'Quick Actions',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                      'ACTIVE BOOKING',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.primaryColor,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      alignment: WrapAlignment.start,
-                      children: [
-                        _buildQuickActionCard(
-                          context,
-                          Icons.search,
-                          'Find Parking',
-                          () {
-                            Navigator.pushNamed(context, AppRoutes.parkingmap);
-                          },
-                        ),
-                        _buildQuickActionCard(
-                          context,
-                          Icons.history,
-                          'My Bookings',
-                          () {
-                            Navigator.pushNamed(context, AppRoutes.bookingHistory);
-                          },
-                          badge: bookingProvider.activeBookings.isNotEmpty ? 
-                            bookingProvider.activeBookings.length.toString() : null,
-                        ),
-                        _buildQuickActionCard(
-                          context,
-                          Icons.account_balance_wallet,
-                          'Wallet',
-                          () {
-                            Navigator.pushNamed(context, AppRoutes.wallet);
-                          },
-                        ),
-                        _buildQuickActionCard(
-                          context,
-                          Icons.chat,
-                          'Support',
-                          () {
-                            Navigator.pushNamed(context, AppRoutes.chat);
-                          },
-                        ),
-                        _buildQuickActionCard(
-                          context,
-                          Icons.qr_code_scanner,
-                          'Scan QR',
-                          () {
-                            Navigator.pushNamed(context, AppRoutes.scanQr);
-                          },
-                        ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 16),
                   ],
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildQuickActionCard(
-    BuildContext context,
-    IconData icon,
-    String label,
-    VoidCallback onTap, {
-    String? badge,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 100,
-        height: 100,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 5,
-              offset: const Offset(0, 2),
+                Text(
+                  _formatCountdown(remaining),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isExpiringSoon ? AppTheme.errorColor : AppTheme.primaryColor,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+          ),
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  icon,
-                  size: 36,
-                  color: Theme.of(context).primaryColor,
+                Text(
+                  booking.parkingSpotName,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  label,
-                  textAlign: TextAlign.center,
+                  'Space ${booking.id.substring(0, 4).toUpperCase()} • Expires at ${DateFormat('hh:mm a').format(booking.endTime)}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ParkingDirectionsScreen(
+                                parkingSpot: parkingSpot,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.navigation, size: 18),
+                        label: const Text('Directions'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pushNamed(context, AppRoutes.bookingHistory);
+                        },
+                        icon: Icon(Icons.info_outline, size: 18, color: AppTheme.primaryColor),
+                        label: Text('Details', style: TextStyle(color: AppTheme.primaryColor)),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: BorderSide(color: AppTheme.primaryColor.withOpacity(0.5)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildTrafficStatusCard() {
+    if (_trafficDelayMinutes == 0) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.successColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          border: Border.all(color: AppTheme.successColor.withOpacity(0.2)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppTheme.successColor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.check_circle, color: AppTheme.successColor),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _trafficCondition,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.successColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'No delays in your area',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    return Container(
+      decoration: BoxDecoration(
+        gradient: AppTheme.trafficGradient,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.errorColor.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'TRAFFIC STATUS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withOpacity(0.8),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _trafficCondition,
                   style: const TextStyle(
-                    fontWeight: FontWeight.w500,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Expect +$_trafficDelayMinutes mins delay in your area',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withOpacity(0.9),
                   ),
                 ),
               ],
+            ),
+          ),
+          Icon(
+            Icons.traffic,
+            size: 48,
+            color: Colors.white.withOpacity(0.3),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildQuickActionsSection(BookingProvider bookingProvider) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Quick Actions',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 16),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 3,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 1.0,
+          children: [
+            _buildQuickActionItem(
+              icon: Icons.local_parking_rounded,
+              label: 'Find Parking',
+              color: AppTheme.primaryColor,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.parkingmap),
+            ),
+            _buildQuickActionItem(
+              icon: Icons.receipt_long_rounded,
+              label: 'Bookings',
+              color: AppTheme.primaryColor,
+              badge: bookingProvider.activeBookings.isNotEmpty
+                  ? bookingProvider.activeBookings.length
+                  : null,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.bookingHistory),
+            ),
+            _buildQuickActionItem(
+              icon: Icons.account_balance_wallet_rounded,
+              label: 'Wallet',
+              color: AppTheme.primaryColor,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.wallet),
+            ),
+            _buildQuickActionItem(
+              icon: Icons.qr_code_scanner_rounded,
+              label: 'Scan QR',
+              color: AppTheme.primaryColor,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.scanQr),
+            ),
+            _buildQuickActionItem(
+              icon: Icons.headset_mic_rounded,
+              label: 'Support',
+              color: AppTheme.primaryColor,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.chat),
+            ),
+            _buildQuickActionItem(
+              icon: Icons.favorite_rounded,
+              label: 'Favorites',
+              color: AppTheme.primaryColor,
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Favorites coming soon!'),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildQuickActionItem({
+    required IconData icon,
+    required String label,
+    required Color color,
+    int? badge,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          boxShadow: AppTheme.shadowSm,
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    ),
+                    child: Icon(icon, color: color, size: 24),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.textPrimary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
             if (badge != null)
               Positioned(
@@ -1014,15 +839,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: const BoxDecoration(
-                    color: Colors.red,
+                    color: AppTheme.errorColor,
                     shape: BoxShape.circle,
                   ),
                   child: Text(
-                    badge,
+                    badge.toString(),
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      fontSize: 10,
                     ),
                   ),
                 ),

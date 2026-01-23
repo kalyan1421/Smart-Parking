@@ -13,6 +13,7 @@ import 'providers/routing_provider.dart';
 import 'providers/vehicle_provider.dart';
 import 'providers/wallet_provider.dart';
 import 'repositories/booking_repository.dart';
+import 'screens/auth/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'services/notification_service.dart';
@@ -113,24 +114,13 @@ class _MyAppContentState extends State<MyAppContent> {
   
   @override
   Widget build(BuildContext context) {
-    // Show loading screen while initializing
+    // Show splash screen while initializing
     if (_initializing) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'QuickPark',
         theme: AppTheme.lightTheme,
-        home: Scaffold(
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                LoadingIndicator(),
-                SizedBox(height: 16),
-                Text('Loading QuickPark...'),
-              ],
-            ),
-          ),
-        ),
+        home: const SplashScreen(),
       );
     }
     
@@ -145,15 +135,15 @@ class _MyAppContentState extends State<MyAppContent> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.error_outline, color: Colors.red, size: 48),
-                SizedBox(height: 16),
-                Text('Failed to initialize app:'),
-                SizedBox(height: 8),
-                Text(_error!, style: TextStyle(color: Colors.red)),
-                SizedBox(height: 16),
+                const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                const SizedBox(height: 16),
+                const Text('Failed to initialize app:'),
+                const SizedBox(height: 8),
+                Text(_error!, style: const TextStyle(color: Colors.red)),
+                const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: _initializeApp,
-                  child: Text('Retry'),
+                  child: const Text('Retry'),
                 ),
               ],
             ),
@@ -178,7 +168,7 @@ class _MyAppContentState extends State<MyAppContent> {
 
   Widget _getHomeScreen(AuthProvider authProvider) {
     if (!authProvider.isLoggedIn) {
-      return LoginScreen();
+      return const LoginScreen();
     }
     
     // If logged in but profile incomplete, show profile completion

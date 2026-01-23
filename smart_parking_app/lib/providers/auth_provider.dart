@@ -198,8 +198,8 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // Register with email and password only
-  Future<bool> register(String email, String password) async {
+  // Register with email and password
+  Future<bool> register(String email, String password, {String? displayName}) async {
     _setLoading(true);
     _clearError();
 
@@ -210,11 +210,11 @@ class AuthProvider with ChangeNotifier {
       );
 
       if (credential.user != null) {
-        // Create minimal user profile - additional details will be collected later
+        // Create user profile with provided name or default
         final newUser = User(
           id: credential.user!.uid,
           email: email,
-          displayName: 'New User', // Temporary name
+          displayName: displayName?.isNotEmpty == true ? displayName! : 'New User',
           role: UserRole.user,
           isEmailVerified: false,
           isPhoneVerified: false,

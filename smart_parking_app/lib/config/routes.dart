@@ -1,10 +1,10 @@
-
 // lib/config/routes.dart - App routes
 import 'package:flutter/material.dart';
 import 'package:smart_parking_app/screens/auth/login_screen.dart';
 import 'package:smart_parking_app/screens/auth/register_screen.dart';
 import 'package:smart_parking_app/screens/auth/password_reset_screen.dart';
 import 'package:smart_parking_app/screens/auth/complete_profile_screen.dart';
+import 'package:smart_parking_app/screens/auth/splash_screen.dart';
 import 'package:smart_parking_app/screens/home/home_screen.dart';
 import 'package:smart_parking_app/screens/parking/parking_map_screen.dart';
 import 'package:smart_parking_app/screens/parking/parking_list_screen.dart';
@@ -18,6 +18,7 @@ import 'package:smart_parking_app/screens/profile/partner_request_screen.dart';
 
 class AppRoutes {
   // Auth Routes
+  static const String splash = '/splash';
   static const String login = '/login';
   static const String register = '/register';
   static const String passwordReset = '/password-reset';
@@ -46,8 +47,9 @@ class AppRoutes {
   
   static Map<String, WidgetBuilder> get routes => {
     // Auth Routes
-    login: (context) => LoginScreen(),
-    register: (context) => RegisterScreen(),
+    splash: (context) => const SplashScreen(),
+    login: (context) => const LoginScreen(),
+    register: (context) => const RegisterScreen(),
     passwordReset: (context) => PasswordResetScreen(),
     completeProfile: (context) => CompleteProfileScreen(),
     
