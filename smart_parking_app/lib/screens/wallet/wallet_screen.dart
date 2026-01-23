@@ -6,7 +6,7 @@ import 'package:smart_parking_app/providers/auth_provider.dart';
 import 'package:smart_parking_app/providers/wallet_provider.dart';
 import 'package:smart_parking_app/models/transaction.dart';
 import 'package:intl/intl.dart';
-import 'package:upi_india/upi_india.dart';
+import 'package:flutter_upi_india/flutter_upi_india.dart';
 
 class WalletScreen extends StatefulWidget {
   @override
@@ -14,7 +14,7 @@ class WalletScreen extends StatefulWidget {
 }
 
 class _WalletScreenState extends State<WalletScreen> {
-  Future<UpiResponse>? _transaction;
+  Future<UpiTransactionResponse>? _transaction;
 
   @override
   void initState() {
@@ -129,89 +129,86 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   void _initiateUpiPayment(String userId, double amount) async {
-    final UpiIndia upi = UpiIndia();
-    List<UpiApp> installedUpiApps = await upi.getAllUpiApps(mandatoryTransactionId: false);
+    try {
+      // Get installed UPI apps using flutter_upi_india
+      final List<ApplicationMeta> installedUpiApps = await UpiPay.getInstalledUpiApplications();
 
-    if (installedUpiApps.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No UPI apps found. Please install a UPI app to proceed.')),
-      );
-      return;
-    }
-
-    UpiApp? selectedUpiApp = await showModalBottomSheet<UpiApp>(
-      context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Choose UPI App',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              ListView.builder(
-                shrinkWrap: true,
-                itemCount: installedUpiApps.length,
-                itemBuilder: (context, index) {
-                  final app = installedUpiApps[index];
-                  return ListTile(
-                    leading: Image.memory(
-                      app.icon,
-                      height: 32,
-                      width: 32,
-                    ),
-                    title: Text(app.name),
-                    onTap: () => Navigator.pop(context, app),
-                  );
-                },
-              ),
-            ],
-          ),
+      if (installedUpiApps.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No UPI apps found. Please install a UPI app to proceed.')),
         );
-      },
-    );
+        return;
+      }
 
-    if (selectedUpiApp == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('UPI payment cancelled by user.')),
+      ApplicationMeta? selectedUpiApp = await showModalBottomSheet<ApplicationMeta>(
+        context: context,
+        builder: (BuildContext context) {
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    'Choose UPI App',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: installedUpiApps.length,
+                  itemBuilder: (context, index) {
+                    final app = installedUpiApps[index];
+                    return ListTile(
+                      leading: app.iconImage(32),
+                      title: Text(app.upiApplication.getAppName()),
+                      onTap: () => Navigator.pop(context, app),
+                    );
+                  },
+                ),
+              ],
+            ),
+          );
+        },
       );
-      return;
-    }
 
-    _transaction = upi.startTransaction(
-      app: selectedUpiApp,
-      receiverUpiId: 'test@upi', // Replace with actual UPI ID
-      receiverName: 'QuickPark Wallet',
-      transactionRefId: DateTime.now().millisecondsSinceEpoch.toString(),
-      transactionNote: 'Add money to QuickPark wallet',
-      amount: amount, // Convert double to String here
-    );
-    
-    // Listen for transaction response
-    _transaction?.then((response) async {
+      if (selectedUpiApp == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('UPI payment cancelled by user.')),
+        );
+        return;
+      }
+
+      final response = await UpiPay.initiateTransaction(
+        amount: amount.toStringAsFixed(2),
+        app: selectedUpiApp.upiApplication,
+        receiverName: 'QuickPark Wallet',
+        receiverUpiAddress: 'quickpark@upi', // Replace with actual UPI ID
+        transactionRef: 'QPWLT${DateTime.now().millisecondsSinceEpoch}',
+        transactionNote: 'Add money to QuickPark wallet',
+      );
+      
+      // Handle transaction response
       String message = '';
       final walletProvider = Provider.of<WalletProvider>(context, listen: false);
       
-      switch (response.status) {
-        case UpiPaymentStatus.SUCCESS:
-          message = 'UPI payment successful!';
-          await walletProvider.addMoney(userId, amount, method: PaymentMethod.upi);
-          break;
-        case UpiPaymentStatus.SUBMITTED:
-          message = 'UPI payment submitted (pending verification).';
-          break;
-        case UpiPaymentStatus.FAILURE:
-          message = 'UPI payment failed.';
-          break;
-        default:
-          message = 'UPI payment status: ${response.status}';
+      if (response.status == UpiTransactionStatus.success) {
+        message = 'UPI payment successful!';
+        await walletProvider.addMoney(userId, amount, method: PaymentMethod.upi);
+      } else if (response.status == UpiTransactionStatus.submitted) {
+        message = 'UPI payment submitted (pending verification).';
+      } else if (response.status == UpiTransactionStatus.failure) {
+        message = 'UPI payment failed.';
+      } else {
+        message = 'UPI payment status: ${response.status}';
       }
+      
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-    });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('UPI payment error: $e')),
+      );
+    }
   }
   
   Widget _paymentOption(String label, IconData icon, bool isSelected, VoidCallback onTap) {

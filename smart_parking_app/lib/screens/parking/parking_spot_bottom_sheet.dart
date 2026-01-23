@@ -152,8 +152,8 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
     // Process UPI payment if selected
     if (_selectedPaymentMethod == PaymentMethod.upi) {
       try {
-        // Get installed UPI apps
-        final List<ApplicationMeta> installedUpiApps = await UpiPay.getInstalledUpiApps();
+        // Get installed UPI apps using flutter_upi_india
+        final List<ApplicationMeta> installedUpiApps = await UpiPay.getInstalledUpiApplications();
 
         if (installedUpiApps.isEmpty) {
           setState(() => _isBooking = false);
@@ -184,7 +184,7 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
                       final app = installedUpiApps[index];
                       return ListTile(
                         leading: app.iconImage(32),
-                        title: Text(app.application.getAppName()),
+                        title: Text(app.upiApplication.getAppName()),
                         onTap: () => Navigator.pop(context, app),
                       );
                     },
@@ -205,7 +205,7 @@ class _ParkingSpotBottomSheetState extends State<ParkingSpotBottomSheet> {
 
         final UpiTransactionResponse transactionResponse = await UpiPay.initiateTransaction(
           amount: totalPrice.toStringAsFixed(2),
-          app: selectedUpiApp.application,
+          app: selectedUpiApp.upiApplication,
           receiverName: 'QuickPark',
           receiverUpiAddress: 'quickpark@upi', // Replace with actual UPI ID
           transactionRef: 'QP${DateTime.now().millisecondsSinceEpoch}',
