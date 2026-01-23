@@ -271,8 +271,14 @@ def calculate_weather_suitability(spot, weather):
 # Install dependencies
 pip install ultralytics
 
-# Download Indian license plate dataset
+# Download Indian license plate dataset (generates synthetic data)
 python download_datasets.py --dataset indian_plates
+
+# Download YOLOv8 pre-trained weights
+python download_datasets.py --dataset yolo_pretrained
+
+# Download all datasets
+python download_datasets.py --dataset all
 
 # Train custom YOLOv8 model
 yolo detect train \
