@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_parking_app/providers/booking_provider.dart';
+import 'package:geolocator/geolocator.dart';
 
 class QRScannerScreen extends StatefulWidget {
   @override
@@ -32,17 +33,53 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       _isProcessing = true;
     });
 
-    // Simulate entry/exit verification
-    // In a real app, this would verify against the backend
-    // Format: PARK-ID
     
-    await Future.delayed(Duration(seconds: 1)); // Simulate network
-    
-    if (mounted) {
-      if (code.startsWith('PARK-')) {
-        _showResultDialog(true, 'Booking Verified\nEntry/Exit Authorized');
+    try {
+      // Check location permissions
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          _showResultDialog(false, 'Location permission is required for check-in');
+          setState(() { _isProcessing = false; });
+          return;
+        }
+      }
+      
+      if (permission == LocationPermission.deniedForever) {
+        _showResultDialog(false, 'Location permission is permanently denied');
+        setState(() { _isProcessing = false; });
+        return;
+      }
+
+      // Get current location
+      final position = await Geolocator.getCurrentPosition();
+
+      if (!mounted) return;
+
+      final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
+      final success = await bookingProvider.checkInByQrCode(
+        code, 
+        userLat: position.latitude, 
+        userLng: position.longitude
+      );
+      
+      if (!mounted) return;
+      
+      if (success) {
+        _showResultDialog(true, 'Booking Verified\nCheck-in Successful');
       } else {
-        _showResultDialog(false, 'Invalid QR Code');
+        _showResultDialog(false, bookingProvider.error ?? 'Invalid QR Code or Request Failed');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showResultDialog(false, 'Error during check-in: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
       }
     }
   }

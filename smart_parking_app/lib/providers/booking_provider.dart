@@ -12,6 +12,7 @@ import '../models/parking_spot.dart';
 import '../repositories/booking_repository.dart';
 import '../services/pdf_manager.dart';
 import '../services/notification_service.dart';
+import 'package:geolocator/geolocator.dart';
 
 class BookingProvider with ChangeNotifier {
   final BookingRepository _bookingRepository;
@@ -147,6 +148,9 @@ class BookingProvider with ChangeNotifier {
     } finally {
       _isLoading = false;
       _notifyListenersDebounced();
+      
+      // Check for no-shows
+      await autoCancelNoShows(userId);
     }
   }
   
@@ -255,14 +259,14 @@ class BookingProvider with ChangeNotifier {
   
   /// Cancel a booking using atomic transaction
   /// Ensures slot count is properly released
-  Future<bool> cancelBooking(String bookingId) async {
+  Future<bool> cancelBooking(String bookingId, {String reason = 'Cancelled by user'}) async {
     _isLoading = true;
     _safeNotifyListeners();
     
     try {
       final result = await DatabaseService.cancelBookingAtomic(
         bookingId: bookingId,
-        reason: 'Cancelled by user',
+        reason: reason,
       );
       
       if (!result.isSuccess) {
@@ -296,12 +300,43 @@ class BookingProvider with ChangeNotifier {
     }
   }
   
+  /// Auto-cancel bookings where user didn't show up
+  Future<void> autoCancelNoShows(String userId) async {
+    try {
+      final now = DateTime.now();
+      // 15 mins grace period
+      final gracePeriod = const Duration(minutes: 15);
+      
+      final bookingsToCheck = _bookings.where((b) => 
+        b.userId == userId &&
+        (b.isConfirmed || b.isPending) &&
+        b.checkedInAt == null
+      ).toList();
+
+      for (final booking in bookingsToCheck) {
+         // Check if Grace Period has passed since Start Time
+         final bool isPastStartTime = now.difference(booking.startTime) > gracePeriod;
+         
+         // ALSO Check if Grace Period has passed since Booking Creation (for late bookings)
+         // This prevents immediate cancellation if user books for a time slightly in the past
+         final bool isPastCreationTime = now.difference(booking.createdAt) > gracePeriod;
+
+         if (isPastStartTime && isPastCreationTime) {
+            await cancelBooking(booking.id, reason: 'No-show: Auto-cancelled');
+            debugPrint('Auto-cancelled booking ${booking.id} due to no-show');
+         }
+      }
+    } catch (e) {
+      debugPrint('❌ Error autoCancelNoShows: $e');
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // CHECK-IN / CHECK-OUT
   // ═══════════════════════════════════════════════════════════════════════════
 
   /// Check-in by QR Code scan
-  Future<bool> checkInByQrCode(String qrCode) async {
+  Future<bool> checkInByQrCode(String qrCode, {double? userLat, double? userLng}) async {
     try {
       // Find booking by QR code
       final querySnapshot = await DatabaseService.collection('bookings')
@@ -317,6 +352,25 @@ class BookingProvider with ChangeNotifier {
       }
       
       final bookingDoc = querySnapshot.docs.first;
+      final booking = Booking.fromFirestore(bookingDoc);
+
+      // Geofencing check
+      if (userLat != null && userLng != null) {
+          final double distanceInMeters = Geolocator.distanceBetween(
+            userLat, 
+            userLng, 
+            booking.latitude, 
+            booking.longitude
+          );
+          
+          // Allow 100 meters radius
+          if (distanceInMeters > 100) {
+             _error = 'You are too far from the parking spot (${distanceInMeters.toStringAsFixed(0)}m)';
+             _safeNotifyListeners();
+             return false;
+          }
+      }
+
       return await checkIn(bookingDoc.id, method: CheckInMethod.qrCode);
     } catch (e) {
       _error = 'Failed to check in by QR: $e';
@@ -557,7 +611,9 @@ class BookingProvider with ChangeNotifier {
       int overlappingCount = 0;
       for (var doc in querySnapshot.docs) {
         final booking = Booking.fromFirestore(doc);
-        if (_isTimeConflict(startTime, endTime, booking.startTime, booking.endTime)) {
+        // Add 5 minute buffer time for turn-over
+        final bufferTime = const Duration(minutes: 5);
+        if (_isTimeConflict(startTime, endTime, booking.startTime, booking.endTime.add(bufferTime))) {
           overlappingCount++;
         }
       }
